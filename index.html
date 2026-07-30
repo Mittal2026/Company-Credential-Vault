@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMG Credential Vault</title>
+<style>
+  :root {
+    --bg: #10131a;
+    --surface: #181d27;
+    --surface-raised: #1f2530;
+    --border: #2a3140;
+    --text: #e7e9ee;
+    --text-muted: #8890a0;
+    --accent-amber: #d99a4e;
+    --accent-red: #d9634e;
+    --accent-green: #4ea983;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+  }
+
+  /* ============ LOGIN ============ */
+  #loginScreen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 40px 32px;
+  }
+
+  .vault-mark {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent-amber);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .login-card h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 28px 0;
+    letter-spacing: -0.01em;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: var(--sans);
+    margin-bottom: 18px;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--accent-amber);
+  }
+
+  button {
+    cursor: pointer;
+    font-family: var(--sans);
+    font-weight: 600;
+    border: none;
+    border-radius: 3px;
+    padding: 10px 18px;
+    font-size: 14px;
+  }
+
+  .btn-primary {
+    width: 100%;
+    background: var(--accent-amber);
+    color: #191308;
+  }
+
+  .btn-primary:hover { filter: brightness(1.08); }
+
+  #loginError {
+    color: var(--accent-red);
+    font-size: 13px;
+    margin-top: 14px;
+    display: none;
+  }
+
+  /* ============ DASHBOARD SHELL ============ */
+  #dashboard { display: none; }
+
+  header.topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 58px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--accent-amber);
+    text-transform: uppercase;
+  }
+
+  .userinfo {
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .userinfo .role-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-weight: 500;
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
+
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    padding: 16px 24px 0 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab {
+    background: transparent;
+    color: var(--text-muted);
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 4px 4px 0 0;
+    border: 1px solid transparent;
+  }
+
+  .tab.active {
+    color: var(--text);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-bottom-color: var(--surface-raised);
+    margin-bottom: -1px;
+  }
+
+  .tab .badge {
+    background: var(--accent-red);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 20px;
+    margin-left: 6px;
+    font-family: var(--mono);
+  }
+
+  main {
+    padding: 28px 24px 60px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .view-header h2 {
+    font-size: 18px;
+    margin: 0;
+  }
+
+  .view-header .header-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .view-header p {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin: 4px 0 0 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 12px 16px;
+    background: var(--surface-raised);
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 12px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  .cred-id {
+    font-family: var(--mono);
+    color: var(--accent-amber);
+    font-size: 12px;
+  }
+
+  .status-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .status-active { background: rgba(78,169,131,0.15); color: var(--accent-green); }
+  .status-pending { background: rgba(217,99,78,0.15); color: var(--accent-red); }
+  .status-rotated { background: rgba(217,154,78,0.15); color: var(--accent-amber); }
+
+  .btn-sm {
+    font-size: 12px;
+    padding: 6px 12px;
+    background: var(--surface-raised);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-sm:hover { border-color: var(--accent-amber); }
+
+  .btn-danger { background: transparent; color: var(--accent-red); border: 1px solid var(--accent-red); }
+  .btn-danger:hover { background: rgba(217,99,78,0.1); }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+
+  .toolbar input, .toolbar select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 3px;
+    font-size: 13px;
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8,10,14,0.7);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-backdrop.active { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 28px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .modal h3 {
+    margin: 0 0 20px 0;
+    font-size: 16px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+    justify-content: flex-end;
+  }
+
+  .reveal-box {
+    font-family: var(--mono);
+    background: var(--bg);
+    border: 1px solid var(--accent-amber);
+    padding: 14px;
+    border-radius: 3px;
+    font-size: 14px;
+    word-break: break-all;
+    margin-top: 10px;
+    color: var(--accent-amber);
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-green);
+    padding: 12px 18px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: none;
+    max-width: 320px;
+  }
+  .toast.error { border-left-color: var(--accent-red); }
+  .toast.show { display: block; }
+
+  /* ============ DASHBOARD TILES ============ */
+  .tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  .tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 18px;
+    position: relative;
+  }
+
+  .tile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .tile-title {
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .pulse-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .pulse-green {
+    background: var(--accent-green);
+    box-shadow: 0 0 0 0 rgba(78,169,131,0.6);
+    animation: pulseGreen 2s infinite;
+  }
+
+  .pulse-red {
+    background: var(--accent-red);
+    box-shadow: 0 0 0 0 rgba(217,99,78,0.6);
+    animation: pulseRed 1.2s infinite;
+  }
+
+  @keyframes pulseGreen {
+    0% { box-shadow: 0 0 0 0 rgba(78,169,131,0.5); }
+    70% { box-shadow: 0 0 0 8px rgba(78,169,131,0); }
+    100% { box-shadow: 0 0 0 0 rgba(78,169,131,0); }
+  }
+
+  @keyframes pulseRed {
+    0% { box-shadow: 0 0 0 0 rgba(217,99,78,0.6); }
+    70% { box-shadow: 0 0 0 10px rgba(217,99,78,0); }
+    100% { box-shadow: 0 0 0 0 rgba(217,99,78,0); }
+  }
+
+  .tile-stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 4px 0;
+    color: var(--text-muted);
+  }
+
+  .tile-stat-row strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .tile-type-breakdown {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .tile-type-breakdown div {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+  }
+
+  .tile.attention {
+    border-color: var(--accent-red);
+    background: rgba(217,99,78,0.06);
+  }
+
+  .tile-employee-name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .tile-employee-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="vault-mark">SMG · Internal</div>
+    <h1>Credential Vault</h1>
+    <form id="loginForm">
+      <label for="username">Username</label>
+      <input type="text" id="username" autocomplete="username" required>
+      <label for="password">Password</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <button type="submit" class="btn-primary">Log in</button>
+      <div id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboard">
+  <header class="topbar">
+    <div class="brand">🔒 Credential Vault</div>
+    <div class="userinfo">
+      <span id="currentUsername"></span>
+      <span class="role-tag" id="currentRole"></span>
+      <button class="btn-ghost" id="logoutBtn">Log out</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="buDashboardView">Dashboard</button>
+    <button class="tab" data-view="pendingView">Pending Rotation <span class="badge" id="pendingCount" style="display:none">0</span></button>
+    <button class="tab" data-view="credentialsView">Credentials</button>
+    <button class="tab" data-view="grantsView">Access &amp; Relieving</button>
+    <button class="tab" data-view="employeeDashboardView">Employees <span class="badge" id="attentionCount" style="display:none">0</span></button>
+  </nav>
+
+  <main>
+    <!-- BU DASHBOARD -->
+    <div class="view active" id="buDashboardView">
+      <div class="view-header">
+        <div>
+          <h2>Dashboard</h2>
+          <p>Credentials by business unit — green pulse means secured, red means something needs attention.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-sm" onclick="invalidateCache('buDashboardView'); loadBuDashboard();">Refresh</button>
+        </div>
+      </div>
+      <div id="buDashboardContent"></div>
+    </div>
+
+    <!-- PENDING ROTATION -->
+    <div class="view" id="pendingView">
+      <div class="view-header">
+        <div>
+          <h2>Pending Rotation</h2>
+          <p>Credentials that need a new password because access was revoked or an employee was relieved.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-sm" onclick="invalidateCache('pendingView'); loadPendingRotation();">Refresh</button>
+        </div>
+      </div>
+      <div id="pendingContent"></div>
+    </div>
+
+    <!-- CREDENTIALS -->
+    <div class="view" id="credentialsView">
+      <div class="view-header">
+        <div>
+          <h2>Credentials</h2>
+          <p>Every login this vault tracks, across all business units.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-sm" id="newCredentialBtn" style="display:none">+ New credential</button>
+          <button class="btn-sm" onclick="invalidateCache('credentialsView'); loadCredentials();">Refresh</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <select id="buFilter">
+          <option value="">All business units</option>
+        </select>
+      </div>
+      <div id="credentialsContent"></div>
+    </div>
+
+    <!-- GRANTS / RELIEVING -->
+    <div class="view" id="grantsView">
+      <div class="view-header">
+        <div>
+          <h2>Access &amp; Relieving</h2>
+          <p>See who has access to what, grant new access, or relieve an employee (revokes everything at once).</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-sm" id="grantAccessBtn" style="display:none">+ Grant access</button>
+          <button class="btn-sm" id="relieveBtn" style="display:none">Relieve an employee</button>
+          <button class="btn-sm" onclick="invalidateCache('grantsView'); loadGrants();">Refresh</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input type="text" id="employeeIdFilter" placeholder="Filter by Employee ID">
+      </div>
+      <div id="grantsContent"></div>
+    </div>
+
+    <!-- EMPLOYEE DASHBOARD -->
+    <div class="view" id="employeeDashboardView">
+      <div class="view-header">
+        <div>
+          <h2>Employees</h2>
+          <p>Every employee currently holding vault access. Tiles pulse red if the employee is marked Inactive in Settings but still holds active access.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-sm" onclick="invalidateCache('employeeDashboardView'); loadEmployeeDashboard();">Refresh</button>
+        </div>
+      </div>
+      <div id="employeeDashboardContent"></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Reveal Modal -->
+<div class="modal-backdrop" id="revealModal">
+  <div class="modal">
+    <h3>Reveal password</h3>
+    <div id="revealBody"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('revealModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rotate Modal -->
+<div class="modal-backdrop" id="rotateModal">
+  <div class="modal">
+    <h3>Rotate password</h3>
+    <input type="hidden" id="rotateCredId">
+    <label for="rotateNewPass">New password</label>
+    <input type="text" id="rotateNewPass">
+    <button class="btn-sm" type="button" id="generatePassBtn">Generate strong password</button>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('rotateModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto" id="confirmRotateBtn">Rotate</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Credential Modal -->
+<div class="modal-backdrop" id="newCredModal">
+  <div class="modal">
+    <h3>New credential</h3>
+    <label for="newCredType">Type</label>
+    <select id="newCredType">
+      <option value="Other">Other (specify)</option>
+    </select>
+    <input type="text" id="newCredTypeOther" placeholder="Specify type" style="display:none">
+    <label for="newCredAccount">Account identifier</label>
+    <input type="text" id="newCredAccount" placeholder="name@shreemittalgroup.com">
+    <label for="newCredBu">Business unit</label>
+    <select id="newCredBu"></select>
+    <label for="newCredPass">Initial password</label>
+    <input type="text" id="newCredPass">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('newCredModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto" id="confirmNewCredBtn">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Grant Access Modal -->
+<div class="modal-backdrop" id="grantModal">
+  <div class="modal">
+    <h3>Grant access</h3>
+    <label for="grantCredId">Credential</label>
+    <select id="grantCredId"></select>
+    <label for="grantEmpId">Employee ID</label>
+    <input type="text" id="grantEmpId">
+    <label for="grantEmpName">Employee name</label>
+    <input type="text" id="grantEmpName">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('grantModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto" id="confirmGrantBtn">Grant</button>
+    </div>
+  </div>
+</div>
+
+<!-- Relieve Modal -->
+<div class="modal-backdrop" id="relieveModal">
+  <div class="modal">
+    <h3>Relieve an employee</h3>
+    <p style="color:var(--text-muted);font-size:13px;margin-top:0">This revokes every active access grant for this employee and flags all affected credentials for rotation.</p>
+    <label for="relieveEmpId">Employee ID</label>
+    <input type="text" id="relieveEmpId">
+    <label for="relieveReason">Reason</label>
+    <input type="text" id="relieveReason" placeholder="Relieved / Resigned / Terminated">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('relieveModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto;background:var(--accent-red)" id="confirmRelieveBtn">Confirm relieve</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ====================== CONFIG ======================
+  const API_URL = 'https://script.google.com/macros/s/AKfycbyIosPhUJ39N6o6JMOjRa2LxRp8EWqKK-1xkadmhuc9_BF3i-RBy58pZqUyhFE45vh1/exec'; // <-- replace with your deployed Apps Script web app URL
+
+  // ====================== STATE ======================
+  let session = { token: null, username: null, role: null };
+
+  // ====================== API HELPER ======================
+  async function callApi(action, params = {}) {
+    const body = Object.assign({ action, token: session.token }, params);
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Unknown error');
+    return json.data;
+  }
+
+  function showToast(message, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = message;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+  }
+  function openModal(id) {
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ====================== LOGIN ======================
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('loginError');
+    errorEl.style.display = 'none';
+
+    try {
+      const data = await callApiRaw('login', { username, password });
+      session.token = data.token;
+      session.username = data.username;
+      session.role = data.role;
+
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('currentUsername').textContent = session.username;
+      document.getElementById('currentRole').textContent = session.role;
+
+      applyRoleVisibility();
+      loadSettingsLists();
+      loadBuDashboard();
+      loadedViews.buDashboardView = true;
+      loadPendingRotation();
+      loadedViews.pendingView = true;
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+    }
+  });
+
+  // login has no token yet, so it can't reuse callApi() as-is
+  async function callApiRaw(action, params) {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ action }, params))
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Unknown error');
+    return json.data;
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try { await callApi('logout'); } catch (e) {}
+    location.reload();
+  });
+
+  async function loadSettingsLists() {
+    try {
+      const [bus, types] = await Promise.all([
+        callApi('listBusinessUnitsFromSettings'),
+        callApi('listCredentialTypesFromSettings')
+      ]);
+
+      // BU filter (Credentials tab)
+      const buFilterEl = document.getElementById('buFilter');
+      buFilterEl.innerHTML = '<option value="">All business units</option>' +
+        bus.map(b => `<option value="${b.bu_name}">${b.bu_prefix || b.bu_name}</option>`).join('');
+
+      // BU dropdown (New Credential modal)
+      const newCredBuEl = document.getElementById('newCredBu');
+      newCredBuEl.innerHTML = bus.map(b => `<option value="${b.bu_name}">${b.bu_prefix || b.bu_name}</option>`).join('');
+
+      // Credential Type dropdown (New Credential modal) — keep "Other" as the last option
+      const newCredTypeEl = document.getElementById('newCredType');
+      newCredTypeEl.innerHTML = types.map(t => `<option value="${t}">${t}</option>`).join('') +
+        '<option value="Other">Other (specify)</option>';
+    } catch (err) {
+      showToast('Could not load Settings lists: ' + err.message, true);
+    }
+  }
+
+  function applyRoleVisibility() {
+    const isAdmin = session.role === 'Admin';
+    document.getElementById('newCredentialBtn').style.display = isAdmin ? 'inline-block' : 'none';
+    document.getElementById('grantAccessBtn').style.display = isAdmin ? 'inline-block' : 'none';
+    document.getElementById('relieveBtn').style.display = isAdmin ? 'inline-block' : 'none';
+  }
+
+  // ====================== TABS (with simple caching to avoid re-fetching on every switch) ======================
+  const loadedViews = { pendingView: false, credentialsView: false, grantsView: false, buDashboardView: false, employeeDashboardView: false };
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.view).classList.add('active');
+
+      const view = tab.dataset.view;
+      if (loadedViews[view]) return; // already have data, skip the round trip
+
+      if (view === 'pendingView') { loadPendingRotation(); loadedViews.pendingView = true; }
+      if (view === 'credentialsView') { loadCredentials(); loadedViews.credentialsView = true; }
+      if (view === 'grantsView') { loadGrants(); loadedViews.grantsView = true; }
+      if (view === 'buDashboardView') { loadBuDashboard(); loadedViews.buDashboardView = true; }
+      if (view === 'employeeDashboardView') { loadEmployeeDashboard(); loadedViews.employeeDashboardView = true; }
+    });
+  });
+
+  function invalidateCache(view) {
+    if (view) { loadedViews[view] = false; }
+    else { Object.keys(loadedViews).forEach(k => loadedViews[k] = false); }
+  }
+
+  // ====================== PENDING ROTATION ======================
+  async function loadPendingRotation() {
+    const container = document.getElementById('pendingContent');
+    container.innerHTML = '<div class="empty-state">Loading…</div>';
+    try {
+      const pending = await callApi('listPendingRotation');
+      const badge = document.getElementById('pendingCount');
+      if (pending.length > 0) {
+        badge.style.display = 'inline';
+        badge.textContent = pending.length;
+      } else {
+        badge.style.display = 'none';
+      }
+
+      if (pending.length === 0) {
+        container.innerHTML = '<div class="empty-state">Nothing pending. Every credential is up to date.</div>';
+        return;
+      }
+
+      let rows = pending.map(c => `
+        <tr>
+          <td class="cred-id">${c.credential_id}</td>
+          <td>${c.type}</td>
+          <td>${c.account_identifier}</td>
+          <td>${c.bu}</td>
+          <td><span class="status-pill status-pending">Pending Rotation</span></td>
+          <td>${session.role === 'Admin' ? `<button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>` : ''}</td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+    }
+  }
+
+  // ====================== CREDENTIALS ======================
+  async function loadCredentials() {
+    const container = document.getElementById('credentialsContent');
+    container.innerHTML = '<div class="empty-state">Loading…</div>';
+    const bu = document.getElementById('buFilter').value;
+    try {
+      const creds = await callApi('listCredentials', { bu: bu || undefined });
+      if (creds.length === 0) {
+        container.innerHTML = '<div class="empty-state">No credentials yet.</div>';
+        return;
+      }
+      let rows = creds.map(c => {
+        const statusClass = c.status === 'Active' ? 'status-active' : c.status === 'Pending Rotation' ? 'status-pending' : 'status-rotated';
+        return `
+        <tr>
+          <td class="cred-id">${c.credential_id}</td>
+          <td>${c.type}</td>
+          <td>${c.account_identifier}</td>
+          <td>${c.bu}</td>
+          <td><span class="status-pill ${statusClass}">${c.status}</span></td>
+          <td>
+            ${session.role === 'Admin' ? `
+              <button class="btn-sm" onclick="revealCred('${c.credential_id}')">Reveal</button>
+              <button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>
+            ` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+
+      container.innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+    }
+  }
+
+  document.getElementById('buFilter').addEventListener('change', loadCredentials);
+
+  async function revealCred(credId) {
+    try {
+      const data = await callApi('revealCredential', { credentialId: credId });
+      document.getElementById('revealBody').innerHTML = `
+        <p style="color:var(--text-muted);font-size:13px">${data.account_identifier}</p>
+        <div class="reveal-box">${data.password}</div>
+      `;
+      openModal('revealModal');
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  }
+
+  // Rotate
+  function openRotateModal(credId) {
+    document.getElementById('rotateCredId').value = credId;
+    document.getElementById('rotateNewPass').value = '';
+    openModal('rotateModal');
+  }
+
+  document.getElementById('generatePassBtn').addEventListener('click', async () => {
+    try {
+      const pass = await callApi('generatePassword', { length: 20 });
+      document.getElementById('rotateNewPass').value = pass;
+    } catch (err) { showToast(err.message, true); }
+  });
+
+  document.getElementById('confirmRotateBtn').addEventListener('click', async () => {
+    const credId = document.getElementById('rotateCredId').value;
+    const newPass = document.getElementById('rotateNewPass').value;
+    if (!newPass) { showToast('Enter or generate a password first', true); return; }
+
+    const btn = document.getElementById('confirmRotateBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Rotating…';
+    try {
+      await callApi('rotateCredential', { credentialId: credId, newPassword: newPass });
+      closeModal('rotateModal');
+      showToast('Password rotated for ' + credId);
+      invalidateCache('pendingView');
+      loadPendingRotation();
+      loadCredentials();
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = originalText;
+    }
+  });
+
+  // New credential
+  document.getElementById('newCredentialBtn').addEventListener('click', () => openModal('newCredModal'));
+
+  document.getElementById('newCredType').addEventListener('change', (e) => {
+    document.getElementById('newCredTypeOther').style.display = e.target.value === 'Other' ? 'block' : 'none';
+  });
+
+  document.getElementById('confirmNewCredBtn').addEventListener('click', async () => {
+    const typeSelect = document.getElementById('newCredType').value;
+    const type = typeSelect === 'Other' ? document.getElementById('newCredTypeOther').value.trim() : typeSelect;
+    const account = document.getElementById('newCredAccount').value.trim();
+    const bu = document.getElementById('newCredBu').value;
+    const pass = document.getElementById('newCredPass').value;
+    if (!type || !account || !pass) { showToast('Fill in all fields', true); return; }
+
+    const btn = document.getElementById('confirmNewCredBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const id = await callApi('createCredential', { type, accountIdentifier: account, initialPassword: pass, bu });
+      closeModal('newCredModal');
+      showToast('Created ' + id);
+      loadCredentials();
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = originalText;
+    }
+  });
+
+  // ====================== GRANTS ======================
+  async function loadGrants() {
+    const container = document.getElementById('grantsContent');
+    container.innerHTML = '<div class="empty-state">Loading…</div>';
+    const empId = document.getElementById('employeeIdFilter').value.trim();
+    try {
+      const grants = await callApi('listAccessGrants', { employeeId: empId || undefined });
+      if (grants.length === 0) {
+        container.innerHTML = '<div class="empty-state">No access grants found.</div>';
+        return;
+      }
+      let rows = grants.map(g => `
+        <tr>
+          <td class="cred-id">${g.grant_id}</td>
+          <td class="cred-id">${g.credential_id}</td>
+          <td>${g.employee_id}</td>
+          <td>${g.employee_name}</td>
+          <td>${g.revoked_date ? '<span class="status-pill status-pending">Revoked</span>' : '<span class="status-pill status-active">Active</span>'}</td>
+          <td>${(!g.revoked_date && session.role === 'Admin') ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${g.grant_id}')">Revoke</button>` : ''}</td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <table>
+          <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+    }
+  }
+
+  document.getElementById('employeeIdFilter').addEventListener('input', () => {
+    clearTimeout(window._empFilterDebounce);
+    window._empFilterDebounce = setTimeout(loadGrants, 400);
+  });
+
+  async function revokeGrant(grantId) {
+    const reason = prompt('Reason for revoking this grant?');
+    if (reason === null) return; // user clicked Cancel — abort, do not revoke
+    try {
+      await callApi('revokeAccess', { grantId, reason: reason.trim() || 'Manual revoke' });
+      showToast('Access revoked');
+      invalidateCache('pendingView');
+      loadGrants();
+    } catch (err) { showToast(err.message, true); }
+  }
+
+  document.getElementById('confirmGrantBtn').addEventListener('click', async () => {
+    const credentialId = document.getElementById('grantCredId').value;
+    const employeeId = document.getElementById('grantEmpId').value.trim();
+    const employeeName = document.getElementById('grantEmpName').value.trim();
+    if (!credentialId || !employeeId || !employeeName) { showToast('Fill in all fields', true); return; }
+
+    const btn = document.getElementById('confirmGrantBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Granting…';
+    try {
+      const id = await callApi('grantAccess', { credentialId, employeeId, employeeName });
+      closeModal('grantModal');
+      showToast('Granted ' + id);
+      loadGrants();
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = originalText;
+    }
+  });
+
+  document.getElementById('grantAccessBtn').addEventListener('click', async () => {
+    const select = document.getElementById('grantCredId');
+    select.innerHTML = '<option>Loading…</option>';
+    openModal('grantModal');
+    try {
+      const creds = await callApi('listCredentials');
+      if (creds.length === 0) {
+        select.innerHTML = '<option value="">No credentials exist yet — create one first</option>';
+        return;
+      }
+      select.innerHTML = creds.map(c =>
+        `<option value="${c.credential_id}">${c.credential_id} — ${c.type}</option>`
+      ).join('');
+    } catch (err) {
+      select.innerHTML = '<option value="">Error loading credentials</option>';
+      showToast(err.message, true);
+    }
+  });
+
+  // Relieve
+  document.getElementById('relieveBtn').addEventListener('click', () => openModal('relieveModal'));
+  document.getElementById('confirmRelieveBtn').addEventListener('click', async () => {
+    const employeeId = document.getElementById('relieveEmpId').value.trim();
+    const reason = document.getElementById('relieveReason').value.trim() || 'Employee relieved';
+    if (!employeeId) { showToast('Enter an Employee ID', true); return; }
+
+    const btn = document.getElementById('confirmRelieveBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Relieving…';
+    try {
+      const result = await callApi('relieveEmployee', { employeeId, reason });
+      closeModal('relieveModal');
+      showToast(`Relieved. ${result.revokedGrants} grant(s) revoked, ${result.credentialsPendingRotation.length} credential(s) now pending rotation.`);
+      loadGrants();
+      loadPendingRotation();
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = originalText;
+    }
+  });
+
+  // ====================== BU DASHBOARD ======================
+  async function loadBuDashboard() {
+    const container = document.getElementById('buDashboardContent');
+    container.innerHTML = '<div class="empty-state">Loading…</div>';
+    try {
+      const buData = await callApi('getBuDashboard');
+      if (buData.length === 0) {
+        container.innerHTML = '<div class="empty-state">No credentials yet.</div>';
+        return;
+      }
+
+      const tiles = buData.map(bu => {
+        const isSecure = bu.insecure === 0;
+        const typeRows = Object.keys(bu.byType).map(type =>
+          `<div><span>${type}</span><span>${bu.byType[type]}</span></div>`
+        ).join('');
+
+        return `
+          <div class="tile">
+            <div class="tile-header">
+              <span class="tile-title">${bu.bu}</span>
+              <span class="pulse-dot ${isSecure ? 'pulse-green' : 'pulse-red'}"></span>
+            </div>
+            <div class="tile-stat-row"><span>Total credentials</span><strong>${bu.total}</strong></div>
+            <div class="tile-stat-row"><span>Secure</span><strong style="color:var(--accent-green)">${bu.secure}</strong></div>
+            <div class="tile-stat-row"><span>Needs attention</span><strong style="color:var(--accent-red)">${bu.insecure}</strong></div>
+            <div class="tile-type-breakdown">${typeRows}</div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = `<div class="tile-grid">${tiles}</div>`;
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+    }
+  }
+
+  // ====================== EMPLOYEE DASHBOARD ======================
+  async function loadEmployeeDashboard() {
+    const container = document.getElementById('employeeDashboardContent');
+    container.innerHTML = '<div class="empty-state">Loading…</div>';
+    try {
+      const empData = await callApi('getEmployeeDashboard');
+      const attentionBadge = document.getElementById('attentionCount');
+      const attentionCount = empData.filter(e => e.needs_attention).length;
+      if (attentionCount > 0) {
+        attentionBadge.style.display = 'inline';
+        attentionBadge.textContent = attentionCount;
+      } else {
+        attentionBadge.style.display = 'none';
+      }
+
+      if (empData.length === 0) {
+        container.innerHTML = '<div class="empty-state">No employees currently hold active access.</div>';
+        return;
+      }
+
+      const tiles = empData.map(emp => `
+        <div class="tile ${emp.needs_attention ? 'attention' : ''}">
+          <div class="tile-header">
+            <div>
+              <div class="tile-employee-name">${emp.employee_name}</div>
+              <div class="tile-employee-id">${emp.employee_id}</div>
+            </div>
+            <span class="pulse-dot ${emp.needs_attention ? 'pulse-red' : 'pulse-green'}"></span>
+          </div>
+          <div class="tile-stat-row"><span>Status</span><strong>${emp.status}</strong></div>
+          <div class="tile-stat-row"><span>Active credentials held</span><strong>${emp.active_credential_count}</strong></div>
+          ${session.role === 'Admin' ? `<button class="btn-sm btn-danger" style="width:100%;margin-top:10px" onclick="relieveFromTile('${emp.employee_id}')">Revoke all access</button>` : ''}
+        </div>
+      `).join('');
+
+      container.innerHTML = `<div class="tile-grid">${tiles}</div>`;
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+    }
+  }
+
+  async function relieveFromTile(employeeId) {
+    if (!confirm(`Revoke ALL active access for ${employeeId}? This cannot be undone.`)) return;
+    const reason = prompt('Reason for revoking?');
+    if (reason === null) return;
+    try {
+      const result = await callApi('relieveEmployee', { employeeId, reason: reason.trim() || 'Revoked from Employee dashboard' });
+      showToast(`Revoked ${result.revokedGrants} grant(s) for ${employeeId}.`);
+      invalidateCache('pendingView');
+      invalidateCache('grantsView');
+      loadEmployeeDashboard();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  }
+</script>
+
+</body>
+</html>
