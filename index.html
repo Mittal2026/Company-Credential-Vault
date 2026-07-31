@@ -124,6 +124,40 @@
     box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15), inset 0 1px 2px rgba(0,0,0,0.1);
   }
 
+  /* --- Password Field Positioning Fix --- */
+  .password-wrapper {
+    position: relative;
+    width: 100%;
+    margin-bottom: 20px;
+  }
+
+  .password-wrapper input {
+    margin-bottom: 0; /* Remove double bottom margin */
+    padding-right: 42px; /* Prevent text overlap with icon */
+  }
+
+  .toggle-password-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    padding: 0;
+    cursor: pointer;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease;
+  }
+
+  .toggle-password-btn:hover {
+    color: var(--text);
+  }
+
   button {
     cursor: pointer;
     font-family: var(--sans);
@@ -677,9 +711,9 @@
       <label for="username">Username</label>
       <input type="text" id="username" autocomplete="username" required autofocus>
       <label for="password">Password</label>
-      <div style="position:relative">
-        <input type="password" id="password" autocomplete="current-password" required style="padding-right:44px">
-        <button type="button" id="togglePassword" style="position:absolute;right:10px;top:0;bottom:0;margin:auto;height:20px;background:transparent;border:none;color:var(--text-muted);font-size:16px;padding:0;cursor:pointer;line-height:1;display:flex;align-items:center;transition:color 0.2s;">👁</button>
+      <div class="password-wrapper">
+        <input type="password" id="password" autocomplete="current-password" required>
+        <button type="button" id="togglePassword" class="toggle-password-btn" aria-label="Toggle password visibility">👁</button>
       </div>
       <button type="submit" class="btn-primary" id="loginSubmitBtn">Log in</button>
       <div id="loginError"></div>
@@ -1392,6 +1426,7 @@
     }
   });
 
+  // Toggle Password Visiblity Handler
   document.getElementById('togglePassword').addEventListener('click', () => {
     const pwInput = document.getElementById('password');
     const btn = document.getElementById('togglePassword');
