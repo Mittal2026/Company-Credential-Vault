@@ -724,7 +724,7 @@
 <!-- ============ DASHBOARD ============ -->
 <div id="dashboard">
   <header class="topbar">
-    <div class="brand">Credential Vault</div>
+    <div class="brand">SMG Credential Vault</div>
     <div class="userinfo">
       <span id="currentUsername"></span>
       <span class="role-tag" id="currentRole"></span>
@@ -739,7 +739,7 @@
     <button class="tab" data-view="credentialsView">Credentials</button>
     <button class="tab" data-view="grantsView">Access &amp; Relieving</button>
     <button class="tab" data-view="obsoleteView">Obsolete</button>
-    <button class="tab" id="usersTabBtn" data-view="usersView" style="display:none">Users</button>
+    <button class="tab" id="usersTabBtn" data-view="usersView" style="display:none">Vault Users</button>
   </nav>
 
   <main>
@@ -828,7 +828,7 @@
     <div class="view" id="usersView">
       <div class="view-header">
         <div>
-          <h2>Users</h2>
+          <h2>Vault Users</h2>
           <p>Who can log into this vault, and with what role.</p>
         </div>
         <div class="header-actions">
@@ -911,8 +911,8 @@
     <h3>Grant access</h3>
     <label for="grantCredId">Credential</label>
     <select id="grantCredId"></select>
-    <label for="grantEmpId">Employee</label>
-    <select id="grantEmpId"></select>
+    <label>Employees (select one or more)</label>
+    <div id="grantEmpList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:20px;background:var(--bg)"></div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('grantModal')">Cancel</button>
       <button class="btn-primary" style="width:auto" id="confirmGrantBtn">Grant</button>
@@ -928,7 +928,14 @@
     <label for="relieveEmpId">Employee</label>
     <select id="relieveEmpId"></select>
     <label for="relieveReason">Reason</label>
-    <input type="text" id="relieveReason" placeholder="Relieved / Resigned / Terminated">
+    <select id="relieveReason">
+      <option value="Relieved">Relieved</option>
+      <option value="Resigned">Resigned</option>
+      <option value="Terminated">Terminated</option>
+      <option value="Contract ended">Contract ended</option>
+      <option value="Other">Other (specify)</option>
+    </select>
+    <input type="text" id="relieveReasonOther" placeholder="Specify reason" style="display:none">
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('relieveModal')">Cancel</button>
       <button class="btn-primary" style="width:auto;background:var(--accent-red);color:#fff" id="confirmRelieveBtn">Confirm relieve</button>
@@ -981,7 +988,7 @@
 
 <script>
   // ====================== CONFIG ======================
-  const API_URL = 'https://script.google.com/macros/s/AKfycbzdZPB61PwqOiZlbacaCwAtykTMuqbzqpQJ63Tk1zFB4b7qvrzevQ1qwF9fRe89ZD_g/exec'; // <-- replace with your deployed Apps Script web app URL
+  const API_URL = 'https://script.google.com/macros/s/AKfycbziBQwd4aMwNWp8zM7327HJCn27ZQIpRoSi5-0MkaIpsAwb_koT9-TXJDjJjHiggYW1/exec'; // <-- replace with your deployed Apps Script web app URL
 
   // ====================== STATE ======================
   let session = { token: null, username: null, role: null };
@@ -1262,7 +1269,15 @@
   });
 
   // New credential
-  document.getElementById('newCredentialBtn').addEventListener('click', () => openModal('newCredModal'));
+  document.getElementById('newCredentialBtn').addEventListener('click', () => {
+    document.getElementById('newCredType').selectedIndex = 0;
+    document.getElementById('newCredTypeOther').value = '';
+    document.getElementById('newCredTypeOther').style.display = 'none';
+    document.getElementById('newCredAccount').value = '';
+    document.getElementById('newCredPass').value = '';
+    document.getElementById('newCredBu').selectedIndex = 0;
+    openModal('newCredModal');
+  });
 
   document.getElementById('newCredType').addEventListener('change', (e) => {
     document.getElementById('newCredTypeOther').style.display = e.target.value === 'Other' ? 'block' : 'none';
@@ -1342,18 +1357,25 @@
 
   document.getElementById('confirmGrantBtn').addEventListener('click', async () => {
     const credentialId = document.getElementById('grantCredId').value;
-    const empSelect = document.getElementById('grantEmpId');
-    const employeeId = empSelect.value;
-    const employeeName = empSelect.selectedOptions[0] ? empSelect.selectedOptions[0].dataset.name : '';
-    if (!credentialId || !employeeId) { showToast('Fill in all fields', true); return; }
+    const checked = Array.from(document.querySelectorAll('.grant-emp-checkbox:checked'));
+    if (!credentialId) { showToast('Select a credential', true); return; }
+    if (checked.length === 0) { showToast('Select at least one employee', true); return; }
+
+    const employees = checked.map(cb => ({ employeeId: cb.value, employeeName: cb.dataset.name }));
 
     const btn = document.getElementById('confirmGrantBtn');
     const originalText = btn.textContent;
     btn.disabled = true; btn.textContent = 'Granting…';
     try {
-      const id = await callApi('grantAccess', { credentialId, employeeId, employeeName });
+      const result = await callApi('batchGrantAccess', { credentialId, employees });
       closeModal('grantModal');
-      showToast('Granted ' + id);
+
+      let message = `Granted to ${result.granted.length} employee${result.granted.length === 1 ? '' : 's'}.`;
+      if (result.skipped.length > 0) {
+        const skipDetails = result.skipped.map(s => `${s.employeeName || s.employeeId} (${s.reason})`).join('; ');
+        message += ` Skipped ${result.skipped.length}: ${skipDetails}`;
+      }
+      showToast(message, result.skipped.length > 0);
       loadGrants();
     } catch (err) {
       showToast(err.message, true);
@@ -1364,28 +1386,35 @@
 
   document.getElementById('grantAccessBtn').addEventListener('click', async () => {
     const credSelect = document.getElementById('grantCredId');
-    const empSelect = document.getElementById('grantEmpId');
+    const empList = document.getElementById('grantEmpList');
     credSelect.innerHTML = '<option>Loading…</option>';
-    empSelect.innerHTML = '<option>Loading…</option>';
+    empList.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Loading…</div>';
     openModal('grantModal');
-    try {
-      const [creds, employees] = await Promise.all([
-        callApi('listCredentials'),
-        callApi('listEmployeesFromSettings')
-      ]);
 
+    try {
+      const creds = await callApi('listCredentials');
       credSelect.innerHTML = creds.length === 0
         ? '<option value="">No credentials exist yet — create one first</option>'
         : creds.map(c => `<option value="${c.credential_id}">${c.credential_id} — ${c.type}</option>`).join('');
-
-      const activeEmployees = employees.filter(e => e.status === 'Active');
-      empSelect.innerHTML = activeEmployees.length === 0
-        ? '<option value="">No active employees found in Settings</option>'
-        : activeEmployees.map(e => `<option value="${e.employee_id}" data-name="${e.employee_name}">${e.employee_id} — ${e.employee_name}</option>`).join('');
     } catch (err) {
-      credSelect.innerHTML = '<option value="">Error loading</option>';
-      empSelect.innerHTML = '<option value="">Error loading</option>';
-      showToast(err.message, true);
+      credSelect.innerHTML = '<option value="">Error loading — click Grant access again to retry</option>';
+      showToast('Could not load credentials: ' + err.message, true);
+    }
+
+    try {
+      const employees = await callApi('listEmployeesFromSettings');
+      const activeEmployees = employees.filter(e => e.status === 'Active');
+      empList.innerHTML = activeEmployees.length === 0
+        ? '<div style="color:var(--text-muted);font-size:13px">No active employees found in Settings</div>'
+        : activeEmployees.map(e => `
+            <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;font-weight:400;text-transform:none;letter-spacing:normal;cursor:pointer">
+              <input type="checkbox" class="grant-emp-checkbox" value="${e.employee_id}" data-name="${e.employee_name}" style="width:auto;margin:0">
+              ${e.employee_id} — ${e.employee_name}
+            </label>
+          `).join('');
+    } catch (err) {
+      empList.innerHTML = '<div style="color:var(--accent-red);font-size:13px">Error loading — click Grant access again to retry</div>';
+      showToast('Could not load employees: ' + err.message, true);
     }
   });
 
@@ -1393,6 +1422,9 @@
   document.getElementById('relieveBtn').addEventListener('click', async () => {
     const select = document.getElementById('relieveEmpId');
     select.innerHTML = '<option>Loading…</option>';
+    document.getElementById('relieveReason').value = 'Relieved';
+    document.getElementById('relieveReasonOther').style.display = 'none';
+    document.getElementById('relieveReasonOther').value = '';
     openModal('relieveModal');
     try {
       const empData = await callApi('getEmployeeDashboard');
@@ -1405,10 +1437,16 @@
     }
   });
 
+  document.getElementById('relieveReason').addEventListener('change', (e) => {
+    document.getElementById('relieveReasonOther').style.display = e.target.value === 'Other' ? 'block' : 'none';
+  });
+
   document.getElementById('confirmRelieveBtn').addEventListener('click', async () => {
     const employeeId = document.getElementById('relieveEmpId').value;
-    const reason = document.getElementById('relieveReason').value.trim() || 'Employee relieved';
+    const reasonSelect = document.getElementById('relieveReason').value;
+    const reason = reasonSelect === 'Other' ? document.getElementById('relieveReasonOther').value.trim() : reasonSelect;
     if (!employeeId) { showToast('Select an employee', true); return; }
+    if (!reason) { showToast('Specify a reason', true); return; }
 
     const btn = document.getElementById('confirmRelieveBtn');
     const originalText = btn.textContent;
@@ -1556,11 +1594,16 @@
           <td><span class="status-pill ${u.role === 'Admin' ? 'status-active' : 'status-rotated'}">${u.role}</span></td>
           <td>${u.status}</td>
           <td>${u.created_date ? new Date(u.created_date).toLocaleDateString() : ''}</td>
+          <td>${
+            u.status !== 'Active' ? '—' :
+            u.username === session.username ? '<span style="color:var(--text-muted);font-size:12px">(you)</span>' :
+            `<button class="btn-sm btn-danger" onclick="deactivateVaultUser('${u.user_id}', '${u.username}')">Deactivate</button>`
+          }</td>
         </tr>
       `).join('');
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th></tr></thead>
+          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -1597,6 +1640,18 @@
       btn.disabled = false; btn.textContent = originalText;
     }
   });
+
+  async function deactivateVaultUser(userId, username) {
+    if (!confirm(`Deactivate ${username}? They will no longer be able to log in. This can be reversed later by an admin editing the Users sheet directly.`)) return;
+    try {
+      await callApi('deactivateVaultUser', { userId });
+      showToast(username + ' deactivated.');
+      invalidateCache('usersView');
+      loadVaultUsers();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  }
 
   async function loadBuDashboard() {
     const container = document.getElementById('buDashboardContent');
