@@ -987,7 +987,7 @@
     <label for="newUserRole">Role</label>
     <select id="newUserRole">
       <option value="Viewer">Viewer (read-only)</option>
-      <option value="Contributor">Contributor (can add credentials, read-only elsewhere)</option>
+      <option value="Standard">Standard (limited access — can add credentials, read-only elsewhere)</option>
       <option value="Admin">Admin (full access)</option>
     </select>
     <div class="modal-actions">
@@ -999,7 +999,7 @@
 
 <script>
   // ====================== CONFIG ======================
-  const API_URL = 'https://script.google.com/macros/s/AKfycbyw72pF4j1hNdZNusmN4MsG-36a3zHG3h-5S1Q8KkprKzaVM_PPzeltTRaIfz9drkBl/exec'; // <-- replace with your deployed Apps Script web app URL
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxoSIVZMygIB5MgrFoDAxuGu6TMitJdMjFKGBa88TOq5tBk8Ab-OYED19mvuhh2-XCk/exec'; // <-- replace with your deployed Apps Script web app URL
 
   // ====================== STATE ======================
   let session = { token: null, username: null, role: null };
@@ -1112,7 +1112,7 @@
 
   function applyRoleVisibility() {
     const isAdmin = session.role === 'Admin';
-    const canCreateCredentials = session.role === 'Admin' || session.role === 'Contributor';
+    const canCreateCredentials = session.role === 'Admin' || session.role === 'Standard';
     document.getElementById('newCredentialBtn').style.display = canCreateCredentials ? 'inline-block' : 'none';
     document.getElementById('grantAccessBtn').style.display = isAdmin ? 'inline-block' : 'none';
     document.getElementById('relieveBtn').style.display = isAdmin ? 'inline-block' : 'none';
