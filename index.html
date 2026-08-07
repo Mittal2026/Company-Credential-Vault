@@ -421,6 +421,10 @@
   .status-pending { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.2); }
   .status-rotated { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.2); }
 
+  .sensitivity-high { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.2); }
+  .sensitivity-medium { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.2); }
+  .sensitivity-low { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.2); }
+
   /* ============ BUTTONS ============ */
   .btn-sm {
     font-size: 13px;
@@ -896,6 +900,12 @@
     <input type="text" id="newCredAccount" placeholder="name@shreemittalgroup.com">
     <label for="newCredBu">Business unit</label>
     <select id="newCredBu"></select>
+    <label for="newCredSensitivity">Sensitivity</label>
+    <select id="newCredSensitivity">
+      <option value="Low">Low</option>
+      <option value="Medium" selected>Medium</option>
+      <option value="High">High</option>
+    </select>
     <label for="newCredPass">Initial password</label>
     <input type="text" id="newCredPass">
     <div class="modal-actions">
@@ -977,6 +987,7 @@
     <label for="newUserRole">Role</label>
     <select id="newUserRole">
       <option value="Viewer">Viewer (read-only)</option>
+      <option value="Contributor">Contributor (can add credentials, read-only elsewhere)</option>
       <option value="Admin">Admin (full access)</option>
     </select>
     <div class="modal-actions">
@@ -988,7 +999,7 @@
 
 <script>
   // ====================== CONFIG ======================
-  const API_URL = 'https://script.google.com/macros/s/AKfycbziBQwd4aMwNWp8zM7327HJCn27ZQIpRoSi5-0MkaIpsAwb_koT9-TXJDjJjHiggYW1/exec'; // <-- replace with your deployed Apps Script web app URL
+  const API_URL = 'https://script.google.com/macros/s/AKfycbyw72pF4j1hNdZNusmN4MsG-36a3zHG3h-5S1Q8KkprKzaVM_PPzeltTRaIfz9drkBl/exec'; // <-- replace with your deployed Apps Script web app URL
 
   // ====================== STATE ======================
   let session = { token: null, username: null, role: null };
@@ -1101,7 +1112,8 @@
 
   function applyRoleVisibility() {
     const isAdmin = session.role === 'Admin';
-    document.getElementById('newCredentialBtn').style.display = isAdmin ? 'inline-block' : 'none';
+    const canCreateCredentials = session.role === 'Admin' || session.role === 'Contributor';
+    document.getElementById('newCredentialBtn').style.display = canCreateCredentials ? 'inline-block' : 'none';
     document.getElementById('grantAccessBtn').style.display = isAdmin ? 'inline-block' : 'none';
     document.getElementById('relieveBtn').style.display = isAdmin ? 'inline-block' : 'none';
     document.getElementById('usersTabBtn').style.display = isAdmin ? 'inline-block' : 'none';
@@ -1160,6 +1172,7 @@
           <td>${c.type}</td>
           <td>${c.account_identifier}</td>
           <td>${c.bu}</td>
+          <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
           <td><span class="status-pill status-pending">Pending Rotation</span></td>
           <td>${session.role === 'Admin' ? `<button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>` : ''}</td>
         </tr>
@@ -1167,7 +1180,7 @@
 
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -1195,6 +1208,7 @@
           <td>${c.type}</td>
           <td>${c.account_identifier}</td>
           <td>${c.bu}</td>
+          <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
           <td><span class="status-pill ${statusClass}">${c.status}</span></td>
           <td>
             ${session.role === 'Admin' ? `
@@ -1208,7 +1222,7 @@
 
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -1276,6 +1290,7 @@
     document.getElementById('newCredAccount').value = '';
     document.getElementById('newCredPass').value = '';
     document.getElementById('newCredBu').selectedIndex = 0;
+    document.getElementById('newCredSensitivity').value = 'Medium';
     openModal('newCredModal');
   });
 
@@ -1288,6 +1303,7 @@
     const type = typeSelect === 'Other' ? document.getElementById('newCredTypeOther').value.trim() : typeSelect;
     const account = document.getElementById('newCredAccount').value.trim();
     const bu = document.getElementById('newCredBu').value;
+    const sensitivity = document.getElementById('newCredSensitivity').value;
     const pass = document.getElementById('newCredPass').value;
     if (!type || !account || !pass) { showToast('Fill in all fields', true); return; }
 
@@ -1295,7 +1311,7 @@
     const originalText = btn.textContent;
     btn.disabled = true; btn.textContent = 'Creating…';
     try {
-      const id = await callApi('createCredential', { type, accountIdentifier: account, initialPassword: pass, bu });
+      const id = await callApi('createCredential', { type, accountIdentifier: account, initialPassword: pass, bu, sensitivity });
       closeModal('newCredModal');
       showToast('Created ' + id);
       loadCredentials();
@@ -1562,13 +1578,14 @@
           <td>${c.type}</td>
           <td>${c.account_identifier}</td>
           <td>${c.bu}</td>
+          <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
           <td>${c.created_date ? new Date(c.created_date).toLocaleDateString() : ''}</td>
         </tr>
       `).join('');
 
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Created</th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Sensitivity</th><th>Created</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
