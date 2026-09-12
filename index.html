@@ -118,7 +118,7 @@
     box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
   }
 
-  input:focus, select:focus {
+  input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--accent-amber);
     box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15), inset 0 1px 2px rgba(0,0,0,0.1);
@@ -896,18 +896,20 @@
       <option value="Other">Other (specify)</option>
     </select>
     <input type="text" id="newCredTypeOther" placeholder="Specify type" style="display:none">
-    <label for="newCredAccount">Account identifier</label>
-    <input type="text" id="newCredAccount" placeholder="name@shreemittalgroup.com">
     <label for="newCredBu">Business unit</label>
     <select id="newCredBu"></select>
+    <label for="newCredAccount">Username</label>
+    <input type="text" id="newCredAccount" placeholder="Email, phone number, or login string">
+    <label for="newCredPass">Initial password</label>
+    <input type="text" id="newCredPass">
     <label for="newCredSensitivity">Sensitivity</label>
     <select id="newCredSensitivity">
       <option value="Low">Low</option>
       <option value="Medium" selected>Medium</option>
       <option value="High">High</option>
     </select>
-    <label for="newCredPass">Initial password</label>
-    <input type="text" id="newCredPass">
+    <label for="newCredRemarks">Additional remarks</label>
+    <textarea id="newCredRemarks" placeholder="e.g. Used for monthly GST filing, recovery phone: 98XXXXXX" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:20px;resize:vertical;min-height:80px;transition:var(--transition);box-shadow:inset 0 1px 2px rgba(0,0,0,0.1)"></textarea>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('newCredModal')">Cancel</button>
       <button class="btn-primary" style="width:auto" id="confirmNewCredBtn">Create</button>
@@ -999,7 +1001,7 @@
 
 <script>
   // ====================== CONFIG ======================
-  const API_URL = 'https://script.google.com/macros/s/AKfycbz9B-PaKmuWOVkBgmOChBjSn4tsXdHItCBVsvlaemfryUJApZfHp2JbiadqkaVKZgyG/exec'; // <-- replace with your deployed Apps Script web app URL
+  const API_URL = 'https://script.google.com/macros/s/AKfycbwWIHANkmXtsgJ7AxV33oaWKXiWempSChtQEbV_n7OGAArp5lxerqzE9Dyr4HU0G6QQ/exec'; // <-- replace with your deployed Apps Script web app URL
 
   // ====================== STATE ======================
   let session = { token: null, username: null, role: null };
@@ -1180,7 +1182,7 @@
 
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -1210,6 +1212,7 @@
           <td>${c.bu}</td>
           <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
           <td><span class="status-pill ${statusClass}">${c.status}</span></td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.remarks || ''}">${c.remarks || '—'}</td>
           <td>
             ${session.role === 'Admin' ? `
               <button class="btn-sm" onclick="revealCred('${c.credential_id}')">Reveal</button>
@@ -1222,7 +1225,7 @@
 
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -1291,6 +1294,7 @@
     document.getElementById('newCredPass').value = '';
     document.getElementById('newCredBu').selectedIndex = 0;
     document.getElementById('newCredSensitivity').value = 'Medium';
+    document.getElementById('newCredRemarks').value = '';
     openModal('newCredModal');
   });
 
@@ -1305,13 +1309,14 @@
     const bu = document.getElementById('newCredBu').value;
     const sensitivity = document.getElementById('newCredSensitivity').value;
     const pass = document.getElementById('newCredPass').value;
+    const remarks = document.getElementById('newCredRemarks').value.trim();
     if (!type || !account || !pass) { showToast('Fill in all fields', true); return; }
 
     const btn = document.getElementById('confirmNewCredBtn');
     const originalText = btn.textContent;
     btn.disabled = true; btn.textContent = 'Creating…';
     try {
-      const id = await callApi('createCredential', { type, accountIdentifier: account, initialPassword: pass, bu, sensitivity });
+      const id = await callApi('createCredential', { type, accountIdentifier: account, initialPassword: pass, bu, sensitivity, remarks });
       closeModal('newCredModal');
       showToast('Created ' + id);
       loadCredentials();
@@ -1585,7 +1590,7 @@
 
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Account</th><th>BU</th><th>Sensitivity</th><th>Created</th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Created</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
