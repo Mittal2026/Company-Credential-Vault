@@ -329,7 +329,7 @@
 
   main {
     padding: 32px;
-    max-width: 1400px;
+    max-width: 1200px;
     margin: 0 auto;
     animation: fadeIn 0.4s ease;
   }
@@ -387,7 +387,6 @@
     padding: 16px 20px;
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border);
-    white-space: nowrap;
   }
 
   td {
@@ -395,7 +394,6 @@
     font-size: 14px;
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
-    white-space: nowrap;
   }
 
   tr:last-child td { border-bottom: none; }
@@ -1003,20 +1001,27 @@
 
 <script>
   // ====================== CONFIG ======================
-  const API_URL = 'https://script.google.com/macros/s/AKfycbwWIHANkmXtsgJ7AxV33oaWKXiWempSChtQEbV_n7OGAArp5lxerqzE9Dyr4HU0G6QQ/exec'; // <-- replace with your deployed Apps Script web app URL
+  const API_URL = 'https://script.google.com/macros/s/AKfycbzdZPB61PwqOiZlbacaCwAtykTMuqbzqpQJ63Tk1zFB4b7qvrzevQ1qwF9fRe89ZD_g/exec'; // <-- replace with your deployed Apps Script web app URL
 
   // ====================== STATE ======================
   let session = { token: null, username: null, role: null };
 
   // ====================== API HELPER ======================
-  async function callApi(action, params = {}) {
+  async function callApi(action, params = {}, isRetry = false) {
     const body = Object.assign({ action, token: session.token }, params);
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(body)
     });
-    const json = await res.json();
+    const text = await res.text();
+    // Apps Script cold-start returns an HTML page instead of JSON.
+    // Detect it and retry once automatically after a short wait.
+    if (text.trim().startsWith('<') && !isRetry) {
+      await new Promise(r => setTimeout(r, 2000));
+      return callApi(action, params, true);
+    }
+    const json = JSON.parse(text);
     if (!json.success) throw new Error(json.error || 'Unknown error');
     return json.data;
   }
@@ -1067,13 +1072,18 @@
   });
 
   // login has no token yet, so it can't reuse callApi() as-is
-  async function callApiRaw(action, params) {
+  async function callApiRaw(action, params, isRetry = false) {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(Object.assign({ action }, params))
     });
-    const json = await res.json();
+    const text = await res.text();
+    if (text.trim().startsWith('<') && !isRetry) {
+      await new Promise(r => setTimeout(r, 2000));
+      return callApiRaw(action, params, true);
+    }
+    const json = JSON.parse(text);
     if (!json.success) throw new Error(json.error || 'Unknown error');
     return json.data;
   }
