@@ -329,7 +329,7 @@
 
   main {
     padding: 32px;
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     animation: fadeIn 0.4s ease;
   }
@@ -477,6 +477,54 @@
     max-width: 300px;
     background: var(--bg);
   }
+
+  /* Credential records scroll within their own panel. Keep columns stable
+     when a long remark is added, and leave the paging controls visible. */
+  .credentials-table-scroll {
+    max-height: min(62vh, 650px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+  .credentials-table {
+    min-width: 100%;
+    table-layout: fixed;
+    border: 0;
+    border-radius: 0;
+  }
+  .credentials-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .credentials-table td, .credentials-table th { padding: 14px 12px; }
+  .credentials-table td { overflow-wrap: anywhere; }
+  .credential-remarks {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .credential-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .credential-actions .btn-sm { margin: 0; white-space: nowrap; }
+  .credentials-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .credentials-pagination-controls { display: flex; align-items: center; gap: 8px; }
+  .credentials-pagination-controls .btn-sm { margin: 0; }
+  .credentials-pagination-controls button:disabled { opacity: .45; cursor: default; }
 
   /* ============ MODALS ============ */
   .modal-backdrop {
@@ -1204,49 +1252,104 @@
   }
 
   // ====================== CREDENTIALS ======================
+  const CREDENTIALS_PER_PAGE = 10;
+  let credentialsPage = 1;
+  let credentialsList = [];
+  let credentialsRequest = 0;
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+  }
+
+  function renderCredentials() {
+    const container = document.getElementById('credentialsContent');
+    if (!credentialsList.length) {
+      container.innerHTML = '<div class="empty-state">No credentials yet.</div>';
+      return;
+    }
+    const pageCount = Math.ceil(credentialsList.length / CREDENTIALS_PER_PAGE);
+    credentialsPage = Math.max(1, Math.min(credentialsPage, pageCount));
+    const start = (credentialsPage - 1) * CREDENTIALS_PER_PAGE;
+    const rows = credentialsList.slice(start, start + CREDENTIALS_PER_PAGE).map(c => {
+      const statusClass = c.status === 'Active' ? 'status-active' : c.status === 'Pending Rotation' ? 'status-pending' : 'status-rotated';
+      const sensitivity = c.sensitivity || 'Medium';
+      const remarks = c.remarks || '—';
+      return `
+        <tr>
+          <td class="cred-id">${escapeHtml(c.credential_id)}</td>
+          <td>${escapeHtml(c.type)}</td>
+          <td>${escapeHtml(c.account_identifier)}</td>
+          <td>${escapeHtml(c.bu)}</td>
+          <td><span class="status-pill sensitivity-${escapeHtml(sensitivity.toLowerCase())}">${escapeHtml(sensitivity)}</span></td>
+          <td><span class="status-pill ${statusClass}">${escapeHtml(c.status)}</span></td>
+          <td><span class="credential-remarks" title="${escapeHtml(remarks)}">${escapeHtml(remarks)}</span></td>
+          <td><div class="credential-actions">
+            ${session.role === 'Admin' ? `
+              <button class="btn-sm" data-credential-action="reveal" data-credential-id="${escapeHtml(c.credential_id)}">Reveal</button>
+              <button class="btn-sm" data-credential-action="rotate" data-credential-id="${escapeHtml(c.credential_id)}">Rotate</button>
+              <button class="btn-sm btn-danger" data-credential-action="retire" data-credential-id="${escapeHtml(c.credential_id)}">Retire</button>
+            ` : ''}
+          </div></td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="credentials-table-scroll" tabindex="0" aria-label="Credential records">
+        <table class="credentials-table">
+          <colgroup><col style="width:10%"><col style="width:11%"><col style="width:13%"><col style="width:8%"><col style="width:11%"><col style="width:13%"><col style="width:15%"><col style="width:19%"></colgroup>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="credentials-pagination" aria-label="Credential pages">
+        <span>Showing ${start + 1}–${Math.min(start + CREDENTIALS_PER_PAGE, credentialsList.length)} of ${credentialsList.length} records</span>
+        <div class="credentials-pagination-controls">
+          <button type="button" class="btn-sm" data-page="prev" ${credentialsPage === 1 ? 'disabled' : ''}>Previous</button>
+          <span>Page ${credentialsPage} of ${pageCount}</span>
+          <button type="button" class="btn-sm" data-page="next" ${credentialsPage === pageCount ? 'disabled' : ''}>Next</button>
+        </div>
+      </div>`;
+  }
+
   async function loadCredentials() {
     const container = document.getElementById('credentialsContent');
     container.innerHTML = '<div class="empty-state">Loading…</div>';
     const bu = document.getElementById('buFilter').value;
+    const request = ++credentialsRequest;
     try {
       const creds = await callApi('listCredentials', { bu: bu || undefined });
-      if (creds.length === 0) {
-        container.innerHTML = '<div class="empty-state">No credentials yet.</div>';
-        return;
-      }
-      let rows = creds.map(c => {
-        const statusClass = c.status === 'Active' ? 'status-active' : c.status === 'Pending Rotation' ? 'status-pending' : 'status-rotated';
-        return `
-        <tr>
-          <td class="cred-id">${c.credential_id}</td>
-          <td>${c.type}</td>
-          <td>${c.account_identifier}</td>
-          <td>${c.bu}</td>
-          <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
-          <td><span class="status-pill ${statusClass}">${c.status}</span></td>
-          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.remarks || ''}">${c.remarks || '—'}</td>
-          <td>
-            ${session.role === 'Admin' ? `
-              <button class="btn-sm" onclick="revealCred('${c.credential_id}')">Reveal</button>
-              <button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>
-              <button class="btn-sm btn-danger" onclick="retireCred('${c.credential_id}')">Retire</button>
-            ` : ''}
-          </td>
-        </tr>`;
-      }).join('');
-
-      container.innerHTML = `
-        <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      `;
+      if (request !== credentialsRequest) return;
+      credentialsList = creds;
+      renderCredentials();
     } catch (err) {
-      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+      if (request === credentialsRequest) container.innerHTML = `<div class="empty-state">Error loading: ${escapeHtml(err.message)}</div>`;
     }
   }
 
-  document.getElementById('buFilter').addEventListener('change', loadCredentials);
+  document.getElementById('buFilter').addEventListener('change', () => {
+    credentialsPage = 1;
+    loadCredentials();
+  });
+  document.getElementById('credentialsContent').addEventListener('click', event => {
+    const pageButton = event.target.closest('[data-page]');
+    if (pageButton && !pageButton.disabled) {
+      credentialsPage += pageButton.dataset.page === 'next' ? 1 : -1;
+      renderCredentials();
+      containerScrollTop();
+    }
+    const actionButton = event.target.closest('[data-credential-action]');
+    if (!actionButton) return;
+    const id = actionButton.dataset.credentialId;
+    if (actionButton.dataset.credentialAction === 'reveal') revealCred(id);
+    if (actionButton.dataset.credentialAction === 'rotate') openRotateModal(id);
+    if (actionButton.dataset.credentialAction === 'retire') retireCred(id);
+  });
+  function containerScrollTop() {
+    const panel = document.querySelector('#credentialsContent .credentials-table-scroll');
+    if (panel) panel.scrollTop = 0;
+  }
 
   async function revealCred(credId) {
     try {
