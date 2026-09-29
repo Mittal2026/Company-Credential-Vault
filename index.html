@@ -279,6 +279,9 @@
     border-bottom: 1px solid var(--border);
     background: var(--bg);
     overflow-x: auto;
+    position: sticky;
+    top: 64px;
+    z-index: 39;
   }
 
   nav.tabs::-webkit-scrollbar { display: none; }
@@ -329,7 +332,7 @@
 
   main {
     padding: 32px;
-    max-width: 1400px;
+    max-width: 95%;
     margin: 0 auto;
     animation: fadeIn 0.4s ease;
   }
@@ -365,15 +368,28 @@
   }
 
   /* ============ TABLES ============ */
+  .table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    -webkit-overflow-scrolling: touch;
+  }
+
   table {
     width: 100%;
+    min-width: 700px;
     border-collapse: separate;
     border-spacing: 0;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
+  }
+
+  .td-actions {
+    white-space: nowrap;
+    width: 1%;
   }
 
   th {
@@ -439,6 +455,50 @@
     background: var(--bg);
   }
 
+  td.actions {
+    white-space: nowrap;
+  }
+
+  td.actions .btn-sm {
+    padding: 6px 10px;
+    font-size: 12px;
+    margin-right: 3px;
+  }
+
+  /* ============ PAGINATION ============ */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .pagination-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .pagination .btn-sm {
+    padding: 6px 14px;
+    margin: 0;
+  }
+
+  .pagination .btn-sm:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: var(--border);
+  }
+
+  .page-indicator {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 0 8px;
+  }
+
   .btn-danger { 
     background: transparent; 
     color: var(--accent-red); 
@@ -477,54 +537,6 @@
     max-width: 300px;
     background: var(--bg);
   }
-
-  /* Credential records scroll within their own panel. Keep columns stable
-     when a long remark is added, and leave the paging controls visible. */
-  .credentials-table-scroll {
-    max-height: min(62vh, 650px);
-    overflow: auto;
-    overscroll-behavior: contain;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-  }
-  .credentials-table {
-    min-width: 100%;
-    table-layout: fixed;
-    border: 0;
-    border-radius: 0;
-  }
-  .credentials-table th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-  .credentials-table td, .credentials-table th { padding: 14px 12px; }
-  .credentials-table td { overflow-wrap: anywhere; }
-  .credential-remarks {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .credential-actions {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 6px;
-  }
-  .credential-actions .btn-sm { margin: 0; white-space: nowrap; }
-  .credentials-pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-top: 14px;
-    color: var(--text-muted);
-    font-size: 13px;
-  }
-  .credentials-pagination-controls { display: flex; align-items: center; gap: 8px; }
-  .credentials-pagination-controls .btn-sm { margin: 0; }
-  .credentials-pagination-controls button:disabled { opacity: .45; cursor: default; }
 
   /* ============ MODALS ============ */
   .modal-backdrop {
@@ -969,8 +981,16 @@
 <div class="modal-backdrop" id="grantModal">
   <div class="modal">
     <h3>Grant access</h3>
+    <label for="grantBuFilter">Business unit</label>
+    <select id="grantBuFilter" onchange="filterGrantCredentials()">
+      <option value="" selected disabled>— Select business unit —</option>
+      <option value="*">All business units</option>
+    </select>
     <label for="grantCredId">Credential</label>
-    <select id="grantCredId"></select>
+    <select id="grantCredId" onchange="showGrantCredDetail()" disabled>
+      <option value="" selected disabled>— Select credential —</option>
+    </select>
+    <div id="grantCredDetail" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:-12px;margin-bottom:20px;font-size:13px;color:var(--text-muted);line-height:2"></div>
     <label>Employees (select one or more)</label>
     <div id="grantEmpList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:20px;background:var(--bg)"></div>
     <div class="modal-actions">
@@ -1035,11 +1055,12 @@
     <input type="text" id="newUserPassword" placeholder="At least 6 characters">
     <p style="color:var(--text-muted);font-size:12px;margin-top:-10px;margin-bottom:16px;line-height:1.5">Share this with them directly — there's no self-signup, so this is their real login until they know to treat it as their own secret.</p>
     <label for="newUserRole">Role</label>
-    <select id="newUserRole">
-      <option value="Viewer">Viewer (read-only)</option>
-      <option value="Standard">Standard (limited access — can add credentials, read-only elsewhere)</option>
-      <option value="Admin">Admin (full access)</option>
+    <select id="newUserRole" onchange="updateRoleDescription()">
+      <option value="Viewer">Viewer</option>
+      <option value="Standard">Standard</option>
+      <option value="Admin">Admin</option>
     </select>
+    <p id="roleDescription" style="color:var(--text-muted);font-size:12px;margin-top:-10px;margin-bottom:16px;line-height:1.5">Can view all tabs and data. Cannot create, modify, or delete anything.</p>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('newUserModal')">Cancel</button>
       <button class="btn-primary" style="width:auto" id="confirmNewUserBtn">Create</button>
@@ -1236,15 +1257,17 @@
           <td>${c.bu}</td>
           <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
           <td><span class="status-pill status-pending">Pending Rotation</span></td>
-          <td>${session.role === 'Admin' ? `<button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>` : ''}</td>
+          <td class="td-actions">${session.role === 'Admin' ? `<button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>` : ''}</td>
         </tr>
       `).join('');
 
       container.innerHTML = `
-        <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       `;
     } catch (err) {
       container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
@@ -1252,104 +1275,83 @@
   }
 
   // ====================== CREDENTIALS ======================
-  const CREDENTIALS_PER_PAGE = 10;
-  let credentialsPage = 1;
-  let credentialsList = [];
-  let credentialsRequest = 0;
-
-  function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, char => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[char]);
-  }
-
-  function renderCredentials() {
-    const container = document.getElementById('credentialsContent');
-    if (!credentialsList.length) {
-      container.innerHTML = '<div class="empty-state">No credentials yet.</div>';
-      return;
-    }
-    const pageCount = Math.ceil(credentialsList.length / CREDENTIALS_PER_PAGE);
-    credentialsPage = Math.max(1, Math.min(credentialsPage, pageCount));
-    const start = (credentialsPage - 1) * CREDENTIALS_PER_PAGE;
-    const rows = credentialsList.slice(start, start + CREDENTIALS_PER_PAGE).map(c => {
-      const statusClass = c.status === 'Active' ? 'status-active' : c.status === 'Pending Rotation' ? 'status-pending' : 'status-rotated';
-      const sensitivity = c.sensitivity || 'Medium';
-      const remarks = c.remarks || '—';
-      return `
-        <tr>
-          <td class="cred-id">${escapeHtml(c.credential_id)}</td>
-          <td>${escapeHtml(c.type)}</td>
-          <td>${escapeHtml(c.account_identifier)}</td>
-          <td>${escapeHtml(c.bu)}</td>
-          <td><span class="status-pill sensitivity-${escapeHtml(sensitivity.toLowerCase())}">${escapeHtml(sensitivity)}</span></td>
-          <td><span class="status-pill ${statusClass}">${escapeHtml(c.status)}</span></td>
-          <td><span class="credential-remarks" title="${escapeHtml(remarks)}">${escapeHtml(remarks)}</span></td>
-          <td><div class="credential-actions">
-            ${session.role === 'Admin' ? `
-              <button class="btn-sm" data-credential-action="reveal" data-credential-id="${escapeHtml(c.credential_id)}">Reveal</button>
-              <button class="btn-sm" data-credential-action="rotate" data-credential-id="${escapeHtml(c.credential_id)}">Rotate</button>
-              <button class="btn-sm btn-danger" data-credential-action="retire" data-credential-id="${escapeHtml(c.credential_id)}">Retire</button>
-            ` : ''}
-          </div></td>
-        </tr>`;
-    }).join('');
-
-    container.innerHTML = `
-      <div class="credentials-table-scroll" tabindex="0" aria-label="Credential records">
-        <table class="credentials-table">
-          <colgroup><col style="width:10%"><col style="width:11%"><col style="width:13%"><col style="width:8%"><col style="width:11%"><col style="width:13%"><col style="width:15%"><col style="width:19%"></colgroup>
-          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-      <div class="credentials-pagination" aria-label="Credential pages">
-        <span>Showing ${start + 1}–${Math.min(start + CREDENTIALS_PER_PAGE, credentialsList.length)} of ${credentialsList.length} records</span>
-        <div class="credentials-pagination-controls">
-          <button type="button" class="btn-sm" data-page="prev" ${credentialsPage === 1 ? 'disabled' : ''}>Previous</button>
-          <span>Page ${credentialsPage} of ${pageCount}</span>
-          <button type="button" class="btn-sm" data-page="next" ${credentialsPage === pageCount ? 'disabled' : ''}>Next</button>
-        </div>
-      </div>`;
-  }
+  let credPage = 1;
+  const CREDS_PER_PAGE = 10;
+  let allCreds = [];
 
   async function loadCredentials() {
     const container = document.getElementById('credentialsContent');
     container.innerHTML = '<div class="empty-state">Loading…</div>';
     const bu = document.getElementById('buFilter').value;
-    const request = ++credentialsRequest;
     try {
-      const creds = await callApi('listCredentials', { bu: bu || undefined });
-      if (request !== credentialsRequest) return;
-      credentialsList = creds;
-      renderCredentials();
+      allCreds = await callApi('listCredentials', { bu: bu || undefined });
+      credPage = 1;
+      renderCredentialsPage();
     } catch (err) {
-      if (request === credentialsRequest) container.innerHTML = `<div class="empty-state">Error loading: ${escapeHtml(err.message)}</div>`;
+      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
     }
   }
 
+  function renderCredentialsPage() {
+    const container = document.getElementById('credentialsContent');
+    if (allCreds.length === 0) {
+      container.innerHTML = '<div class="empty-state">No credentials yet.</div>';
+      return;
+    }
+
+    const totalPages = Math.ceil(allCreds.length / CREDS_PER_PAGE);
+    const start = (credPage - 1) * CREDS_PER_PAGE;
+    const pageItems = allCreds.slice(start, start + CREDS_PER_PAGE);
+
+    const rows = pageItems.map(c => {
+      const statusClass = c.status === 'Active' ? 'status-active' : c.status === 'Pending Rotation' ? 'status-pending' : 'status-rotated';
+      return `
+      <tr>
+        <td class="cred-id">${c.credential_id}</td>
+        <td>${c.type}</td>
+        <td>${c.account_identifier}</td>
+        <td>${c.bu}</td>
+        <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
+        <td><span class="status-pill ${statusClass}">${c.status}</span></td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.remarks || ''}">${c.remarks || '—'}</td>
+        <td class="td-actions">
+          ${session.role === 'Admin' ? `
+            <button class="btn-sm" onclick="revealCred('${c.credential_id}')">Reveal</button>
+            <button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>
+            <button class="btn-sm btn-danger" onclick="retireCred('${c.credential_id}')">Retire</button>
+          ` : ''}
+        </td>
+      </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <span>${allCreds.length} credential${allCreds.length === 1 ? '' : 's'} total</span>
+        <div class="pagination-controls">
+          <button class="btn-sm" onclick="changeCredPage(-1)" ${credPage === 1 ? 'disabled' : ''}>← Previous</button>
+          <span class="page-indicator">Page ${credPage} of ${totalPages}</span>
+          <button class="btn-sm" onclick="changeCredPage(1)" ${credPage === totalPages ? 'disabled' : ''}>Next →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function changeCredPage(direction) {
+    const totalPages = Math.ceil(allCreds.length / CREDS_PER_PAGE);
+    credPage = Math.max(1, Math.min(totalPages, credPage + direction));
+    renderCredentialsPage();
+  }
+
   document.getElementById('buFilter').addEventListener('change', () => {
-    credentialsPage = 1;
+    credPage = 1;
     loadCredentials();
   });
-  document.getElementById('credentialsContent').addEventListener('click', event => {
-    const pageButton = event.target.closest('[data-page]');
-    if (pageButton && !pageButton.disabled) {
-      credentialsPage += pageButton.dataset.page === 'next' ? 1 : -1;
-      renderCredentials();
-      containerScrollTop();
-    }
-    const actionButton = event.target.closest('[data-credential-action]');
-    if (!actionButton) return;
-    const id = actionButton.dataset.credentialId;
-    if (actionButton.dataset.credentialAction === 'reveal') revealCred(id);
-    if (actionButton.dataset.credentialAction === 'rotate') openRotateModal(id);
-    if (actionButton.dataset.credentialAction === 'retire') retireCred(id);
-  });
-  function containerScrollTop() {
-    const panel = document.querySelector('#credentialsContent .credentials-table-scroll');
-    if (panel) panel.scrollTop = 0;
-  }
 
   async function revealCred(credId) {
     try {
@@ -1460,13 +1462,13 @@
           <td>${g.employee_id}</td>
           <td>${g.employee_name}</td>
           <td>${g.revoked_date ? '<span class="status-pill status-pending">Revoked</span>' : '<span class="status-pill status-active">Active</span>'}</td>
-          <td>${(!g.revoked_date && session.role === 'Admin') ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${g.grant_id}')">Revoke</button>` : ''}</td>
+          <td class="actions">${(!g.revoked_date && session.role === 'Admin') ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${g.grant_id}')">Revoke</button>` : ''}</td>
         </tr>
       `).join('');
 
       container.innerHTML = `
         <table>
-          <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -1494,6 +1496,7 @@
   document.getElementById('confirmGrantBtn').addEventListener('click', async () => {
     const credentialId = document.getElementById('grantCredId').value;
     const checked = Array.from(document.querySelectorAll('.grant-emp-checkbox:checked'));
+    if (!document.getElementById('grantBuFilter').value) { showToast('Select a business unit', true); return; }
     if (!credentialId) { showToast('Select a credential', true); return; }
     if (checked.length === 0) { showToast('Select at least one employee', true); return; }
 
@@ -1520,18 +1523,31 @@
     }
   });
 
+  let _grantAllCreds = [];
+
   document.getElementById('grantAccessBtn').addEventListener('click', async () => {
     const credSelect = document.getElementById('grantCredId');
     const empList = document.getElementById('grantEmpList');
-    credSelect.innerHTML = '<option>Loading…</option>';
+    const buFilter = document.getElementById('grantBuFilter');
+    const detailPanel = document.getElementById('grantCredDetail');
+
+    credSelect.disabled = true;
+    credSelect.innerHTML = '<option value="" selected disabled>— Select credential —</option>';
     empList.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Loading…</div>';
+    detailPanel.style.display = 'none';
+    buFilter.selectedIndex = 0;
     openModal('grantModal');
 
+    // Populate BU filter from the already-loaded prefixes in buFilter on main page
+    const existingOptions = document.getElementById('buFilter').options;
+    buFilter.innerHTML = '<option value="" selected disabled>— Select business unit —</option><option value="*">All business units</option>';
+    for (let i = 1; i < existingOptions.length; i++) {
+      buFilter.innerHTML += `<option value="${existingOptions[i].value}">${existingOptions[i].text}</option>`;
+    }
+
     try {
-      const creds = await callApi('listCredentials');
-      credSelect.innerHTML = creds.length === 0
-        ? '<option value="">No credentials exist yet — create one first</option>'
-        : creds.map(c => `<option value="${c.credential_id}">${c.credential_id} — ${c.type}</option>`).join('');
+      _grantAllCreds = await callApi('listCredentials');
+      filterGrantCredentials();
     } catch (err) {
       credSelect.innerHTML = '<option value="">Error loading — click Grant access again to retry</option>';
       showToast('Could not load credentials: ' + err.message, true);
@@ -1553,6 +1569,37 @@
       showToast('Could not load employees: ' + err.message, true);
     }
   });
+
+  function filterGrantCredentials() {
+    const bu = document.getElementById('grantBuFilter').value;
+    const credSelect = document.getElementById('grantCredId');
+    const detailPanel = document.getElementById('grantCredDetail');
+    detailPanel.style.display = 'none';
+    credSelect.disabled = !bu;
+    if (!bu) {
+      credSelect.innerHTML = '<option value="" selected disabled>— Select credential —</option>';
+      return;
+    }
+    const filtered = bu === '*' ? _grantAllCreds : _grantAllCreds.filter(c => c.bu === bu);
+    credSelect.innerHTML = filtered.length === 0
+      ? '<option value="">No credentials found for this BU</option>'
+      : '<option value="" selected disabled>— Select credential —</option>' + filtered.map(c => `<option value="${c.credential_id}">${c.credential_id} — ${c.type}</option>`).join('');
+    showGrantCredDetail();
+  }
+
+  function showGrantCredDetail() {
+    const credSelect = document.getElementById('grantCredId');
+    const detailPanel = document.getElementById('grantCredDetail');
+    const credId = credSelect.value;
+    if (!credId) { detailPanel.style.display = 'none'; return; }
+    const cred = _grantAllCreds.find(c => c.credential_id === credId);
+    if (!cred) { detailPanel.style.display = 'none'; return; }
+    detailPanel.innerHTML = `
+      <span style="color:var(--text-muted)">Account Identifier&nbsp;&nbsp;</span><span style="color:var(--text);font-family:var(--mono);font-size:12px">${cred.account_identifier}</span><br>
+      ${cred.remarks ? `<span style="color:var(--text-muted)">Remarks&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${cred.remarks}</span>` : ''}
+    `;
+    detailPanel.style.display = 'block';
+  }
 
   // Relieve
   document.getElementById('relieveBtn').addEventListener('click', async () => {
@@ -1740,7 +1787,7 @@
       `).join('');
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -1749,10 +1796,22 @@
     }
   }
 
+  const roleDescriptions = {
+    Viewer: 'Can view all tabs and data. Cannot create, modify, or delete anything.',
+    Standard: 'Can create new credentials only. All other tabs are read-only.',
+    Admin: 'Full access — can create, reveal, rotate, retire, grant access, relieve employees, and manage vault users.'
+  };
+
+  function updateRoleDescription() {
+    const role = document.getElementById('newUserRole').value;
+    document.getElementById('roleDescription').textContent = roleDescriptions[role] || '';
+  }
+
   document.getElementById('newUserBtn').addEventListener('click', () => {
     document.getElementById('newUserUsername').value = '';
     document.getElementById('newUserPassword').value = '';
     document.getElementById('newUserRole').value = 'Viewer';
+    document.getElementById('roleDescription').textContent = roleDescriptions['Viewer'];
     openModal('newUserModal');
   });
 
