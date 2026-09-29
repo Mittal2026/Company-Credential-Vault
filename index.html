@@ -180,13 +180,18 @@
     box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
   }
 
-  .btn-primary:hover { 
+  .btn-primary:hover:not(:disabled) { 
     background: var(--accent-amber-hover);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
   }
 
-  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+  
+  .btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
 
   #loginError {
     color: var(--accent-red);
@@ -332,7 +337,7 @@
 
   main {
     padding: 32px;
-    max-width: 1200px;
+    max-width: 95%; /* Responsive wide-view container */
     margin: 0 auto;
     animation: fadeIn 0.4s ease;
   }
@@ -602,6 +607,32 @@
     text-align: center;
     letter-spacing: 1px;
   }
+
+  /* ============ AUTOCOMPLETE & CHIPS (Grant Modal) ============ */
+  .emp-search-container { position: relative; margin-bottom: 20px; }
+  .emp-search-input { width: 100%; margin-bottom: 0; }
+  .emp-suggestions { 
+    position: absolute; top: 100%; left: 0; right: 0; 
+    background: var(--surface); border: 1px solid var(--border); 
+    border-radius: var(--radius-sm); margin-top: 4px; 
+    max-height: 200px; overflow-y: auto; z-index: 50; 
+    box-shadow: var(--shadow-md); display: none; 
+  }
+  .emp-suggestion-item { 
+    padding: 10px 14px; cursor: pointer; font-size: 13px; color: var(--text); border-bottom: 1px solid var(--border);
+  }
+  .emp-suggestion-item.no-matches { cursor: default; }
+  .emp-suggestion-item:last-child { border-bottom: none; }
+  .emp-suggestion-item:hover:not(.no-matches) { background: var(--surface-raised); }
+  .emp-chips-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .emp-chip { 
+    background: var(--surface-raised); border: 1px solid var(--border); 
+    padding: 4px 10px; border-radius: 20px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; 
+  }
+  .emp-chip-remove { 
+    cursor: pointer; color: var(--text-muted); font-weight: bold; background: transparent; border: none; padding: 0; font-size: 14px; line-height: 1;
+  }
+  .emp-chip-remove:hover { color: var(--accent-red); }
 
   .toast {
     position: fixed;
@@ -896,7 +927,7 @@
           <p>Who can log into this vault, and with what role.</p>
         </div>
         <div class="header-actions">
-          <button class="btn-sm" id="newUserBtn">+ New user</button>
+          <button class="btn-sm" id="newUserBtn" style="display:none">+ New user</button>
           <button class="btn-sm" onclick="invalidateCache('usersView'); loadVaultUsers();">Refresh</button>
         </div>
       </div>
@@ -983,13 +1014,22 @@
     <h3>Grant access</h3>
     <label for="grantBuFilter">Business unit</label>
     <select id="grantBuFilter" onchange="filterGrantCredentials()">
-      <option value="">All business units</option>
+      <option value="" selected disabled>— Select business unit —</option>
+      <option value="*">All business units</option>
     </select>
     <label for="grantCredId">Credential</label>
-    <select id="grantCredId" onchange="showGrantCredDetail()"></select>
+    <select id="grantCredId" onchange="showGrantCredDetail()" disabled>
+      <option value="" selected disabled>— Select credential —</option>
+    </select>
     <div id="grantCredDetail" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:-12px;margin-bottom:20px;font-size:13px;color:var(--text-muted);line-height:2"></div>
-    <label>Employees (select one or more)</label>
-    <div id="grantEmpList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:20px;background:var(--bg)"></div>
+    
+    <label>Employees (search and select)</label>
+    <div class="emp-search-container">
+      <input type="text" id="grantEmpSearch" class="emp-search-input" placeholder="Type name or ID..." autocomplete="off">
+      <div id="grantEmpSuggestions" class="emp-suggestions"></div>
+    </div>
+    <div id="grantEmpChips" class="emp-chips-container"></div>
+    
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('grantModal')">Cancel</button>
       <button class="btn-primary" style="width:auto" id="confirmGrantBtn">Grant</button>
@@ -1071,6 +1111,16 @@
 
   // ====================== STATE ======================
   let session = { token: null, username: null, role: null };
+  let _grantAllCreds = [];
+  let _allActiveEmployees = [];
+  let _selectedGrantEmployees = [];
+
+  // ====================== HELPER ======================
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+  }
 
   // ====================== API HELPER ======================
   async function callApi(action, params = {}, isRetry = false) {
@@ -1112,7 +1162,12 @@
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const errorEl = document.getElementById('loginError');
+    const submitBtn = document.getElementById('loginSubmitBtn');
     errorEl.style.display = 'none';
+
+    // UI Feedback for Login delay
+    submitBtn.textContent = 'Logging in...';
+    submitBtn.disabled = true;
 
     try {
       const data = await callApiRaw('login', { username, password });
@@ -1134,6 +1189,8 @@
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.style.display = 'block';
+      submitBtn.textContent = 'Log in';
+      submitBtn.disabled = false;
     }
   });
 
@@ -1166,22 +1223,15 @@
         callApi('listCredentialTypesFromSettings')
       ]);
 
-      // Dedupe by prefix — Master Database may subdivide a BU into
-      // Office/Shop/Site/Factory etc, but credentials should be tagged
-      // at the parent prefix level only (SMM, SBM, SBC, SAU, SSE), not
-      // per granular sub-unit.
       const uniquePrefixes = [...new Set(bus.map(b => b.bu_prefix).filter(Boolean))].sort();
 
-      // BU filter (Credentials tab)
       const buFilterEl = document.getElementById('buFilter');
       buFilterEl.innerHTML = '<option value="">All business units</option>' +
         uniquePrefixes.map(p => `<option value="${p}">${p}</option>`).join('');
 
-      // BU dropdown (New Credential modal)
       const newCredBuEl = document.getElementById('newCredBu');
       newCredBuEl.innerHTML = uniquePrefixes.map(p => `<option value="${p}">${p}</option>`).join('');
 
-      // Credential Type dropdown (New Credential modal) — keep "Other" as the last option
       const newCredTypeEl = document.getElementById('newCredType');
       newCredTypeEl.innerHTML = types.map(t => `<option value="${t}">${t}</option>`).join('') +
         '<option value="Other">Other (specify)</option>';
@@ -1193,13 +1243,15 @@
   function applyRoleVisibility() {
     const isAdmin = session.role === 'Admin';
     const canCreateCredentials = session.role === 'Admin' || session.role === 'Standard';
-    document.getElementById('newCredentialBtn').style.display = canCreateCredentials ? 'inline-block' : 'none';
-    document.getElementById('grantAccessBtn').style.display = isAdmin ? 'inline-block' : 'none';
-    document.getElementById('relieveBtn').style.display = isAdmin ? 'inline-block' : 'none';
-    document.getElementById('usersTabBtn').style.display = isAdmin ? 'inline-block' : 'none';
+    
+    document.getElementById('newCredentialBtn').style.display = canCreateCredentials ? '' : 'none';
+    document.getElementById('grantAccessBtn').style.display = isAdmin ? '' : 'none';
+    document.getElementById('relieveBtn').style.display = isAdmin ? '' : 'none';
+    document.getElementById('usersTabBtn').style.display = isAdmin ? '' : 'none';
+    document.getElementById('newUserBtn').style.display = isAdmin ? '' : 'none';
   }
 
-  // ====================== TABS (with simple caching to avoid re-fetching on every switch) ======================
+  // ====================== TABS ======================
   const loadedViews = { pendingView: false, credentialsView: false, grantsView: false, buDashboardView: false, employeeDashboardView: false, obsoleteView: false, usersView: false };
 
   document.querySelectorAll('.tab').forEach(tab => {
@@ -1210,7 +1262,7 @@
       document.getElementById(tab.dataset.view).classList.add('active');
 
       const view = tab.dataset.view;
-      if (loadedViews[view]) return; // already have data, skip the round trip
+      if (loadedViews[view]) return;
 
       if (view === 'pendingView') { loadPendingRotation(); loadedViews.pendingView = true; }
       if (view === 'credentialsView') { loadCredentials(); loadedViews.credentialsView = true; }
@@ -1248,13 +1300,13 @@
 
       let rows = pending.map(c => `
         <tr>
-          <td class="cred-id">${c.credential_id}</td>
-          <td>${c.type}</td>
-          <td>${c.account_identifier}</td>
-          <td>${c.bu}</td>
-          <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
+          <td class="cred-id">${escapeHtml(c.credential_id)}</td>
+          <td>${escapeHtml(c.type)}</td>
+          <td>${escapeHtml(c.account_identifier)}</td>
+          <td>${escapeHtml(c.bu)}</td>
+          <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${escapeHtml(c.sensitivity || 'Medium')}</span></td>
           <td><span class="status-pill status-pending">Pending Rotation</span></td>
-          <td class="td-actions">${session.role === 'Admin' ? `<button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>` : ''}</td>
+          <td class="td-actions">${session.role === 'Admin' ? `<button class="btn-sm" onclick="openRotateModal('${escapeHtml(c.credential_id)}')">Rotate</button>` : ''}</td>
         </tr>
       `).join('');
 
@@ -1304,18 +1356,18 @@
       const statusClass = c.status === 'Active' ? 'status-active' : c.status === 'Pending Rotation' ? 'status-pending' : 'status-rotated';
       return `
       <tr>
-        <td class="cred-id">${c.credential_id}</td>
-        <td>${c.type}</td>
-        <td>${c.account_identifier}</td>
-        <td>${c.bu}</td>
-        <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
-        <td><span class="status-pill ${statusClass}">${c.status}</span></td>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.remarks || ''}">${c.remarks || '—'}</td>
+        <td class="cred-id">${escapeHtml(c.credential_id)}</td>
+        <td>${escapeHtml(c.type)}</td>
+        <td>${escapeHtml(c.account_identifier)}</td>
+        <td>${escapeHtml(c.bu)}</td>
+        <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${escapeHtml(c.sensitivity || 'Medium')}</span></td>
+        <td><span class="status-pill ${statusClass}">${escapeHtml(c.status)}</span></td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(c.remarks || '')}">${escapeHtml(c.remarks || '—')}</td>
         <td class="td-actions">
           ${session.role === 'Admin' ? `
-            <button class="btn-sm" onclick="revealCred('${c.credential_id}')">Reveal</button>
-            <button class="btn-sm" onclick="openRotateModal('${c.credential_id}')">Rotate</button>
-            <button class="btn-sm btn-danger" onclick="retireCred('${c.credential_id}')">Retire</button>
+            <button class="btn-sm" onclick="revealCred('${escapeHtml(c.credential_id)}')">Reveal</button>
+            <button class="btn-sm" onclick="openRotateModal('${escapeHtml(c.credential_id)}')">Rotate</button>
+            <button class="btn-sm btn-danger" onclick="retireCred('${escapeHtml(c.credential_id)}')">Retire</button>
           ` : ''}
         </td>
       </tr>`;
@@ -1324,7 +1376,7 @@
     container.innerHTML = `
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1354,8 +1406,8 @@
     try {
       const data = await callApi('revealCredential', { credentialId: credId });
       document.getElementById('revealBody').innerHTML = `
-        <p style="color:var(--text-muted);font-size:13px">${data.account_identifier}</p>
-        <div class="reveal-box">${data.password}</div>
+        <p style="color:var(--text-muted);font-size:13px">${escapeHtml(data.account_identifier)}</p>
+        <div class="reveal-box">${escapeHtml(data.password)}</div>
       `;
       openModal('revealModal');
     } catch (err) {
@@ -1454,20 +1506,22 @@
       }
       let rows = grants.map(g => `
         <tr>
-          <td class="cred-id">${g.grant_id}</td>
-          <td class="cred-id">${g.credential_id}</td>
-          <td>${g.employee_id}</td>
-          <td>${g.employee_name}</td>
+          <td class="cred-id">${escapeHtml(g.grant_id)}</td>
+          <td class="cred-id">${escapeHtml(g.credential_id)}</td>
+          <td>${escapeHtml(g.employee_id)}</td>
+          <td>${escapeHtml(g.employee_name)}</td>
           <td>${g.revoked_date ? '<span class="status-pill status-pending">Revoked</span>' : '<span class="status-pill status-active">Active</span>'}</td>
-          <td class="actions">${(!g.revoked_date && session.role === 'Admin') ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${g.grant_id}')">Revoke</button>` : ''}</td>
+          <td class="td-actions">${(!g.revoked_date && session.role === 'Admin') ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${escapeHtml(g.grant_id)}')">Revoke</button>` : ''}</td>
         </tr>
       `).join('');
 
       container.innerHTML = `
-        <table>
-          <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       `;
     } catch (err) {
       container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
@@ -1481,7 +1535,7 @@
 
   async function revokeGrant(grantId) {
     const reason = prompt('Reason for revoking this grant?');
-    if (reason === null) return; // user clicked Cancel — abort, do not revoke
+    if (reason === null) return; // user clicked Cancel
     try {
       await callApi('revokeAccess', { grantId, reason: reason.trim() || 'Manual revoke' });
       showToast('Access revoked');
@@ -1490,13 +1544,155 @@
     } catch (err) { showToast(err.message, true); }
   }
 
+  // GRANT ACCESS MODAL LOGIC
+  document.getElementById('grantAccessBtn').addEventListener('click', async () => {
+    const credSelect = document.getElementById('grantCredId');
+    const buFilter = document.getElementById('grantBuFilter');
+    const detailPanel = document.getElementById('grantCredDetail');
+    
+    // Reset autocomplete state
+    _selectedGrantEmployees = [];
+    renderGrantEmpChips();
+    const searchInput = document.getElementById('grantEmpSearch');
+    searchInput.value = '';
+    searchInput.placeholder = 'Loading employees...';
+    document.getElementById('grantEmpSuggestions').style.display = 'none';
+
+    credSelect.disabled = true;
+    credSelect.innerHTML = '<option value="" selected disabled>— Select credential —</option>';
+    detailPanel.style.display = 'none';
+    buFilter.selectedIndex = 0;
+    openModal('grantModal');
+
+    // Populate BU filter
+    const existingOptions = document.getElementById('buFilter').options;
+    buFilter.innerHTML = '<option value="" selected disabled>— Select business unit —</option><option value="*">All business units</option>';
+    for (let i = 1; i < existingOptions.length; i++) {
+      buFilter.innerHTML += `<option value="${existingOptions[i].value}">${existingOptions[i].text}</option>`;
+    }
+
+    try {
+      _grantAllCreds = await callApi('listCredentials');
+      filterGrantCredentials();
+    } catch (err) {
+      credSelect.innerHTML = '<option value="">Error loading credentials</option>';
+      showToast('Could not load credentials: ' + err.message, true);
+    }
+
+    try {
+      const employees = await callApi('listEmployeesFromSettings');
+      _allActiveEmployees = employees.filter(e => e.status === 'Active');
+      searchInput.placeholder = "Type name or ID...";
+    } catch (err) {
+      searchInput.placeholder = "Error loading employees";
+      showToast('Could not load employees: ' + err.message, true);
+    }
+  });
+
+  function filterGrantCredentials() {
+    const bu = document.getElementById('grantBuFilter').value;
+    const credSelect = document.getElementById('grantCredId');
+    const detailPanel = document.getElementById('grantCredDetail');
+    detailPanel.style.display = 'none';
+    credSelect.disabled = !bu;
+    if (!bu) {
+      credSelect.innerHTML = '<option value="" selected disabled>— Select credential —</option>';
+      return;
+    }
+    const filtered = bu === '*' ? _grantAllCreds : _grantAllCreds.filter(c => c.bu === bu);
+    credSelect.innerHTML = filtered.length === 0
+      ? '<option value="">No credentials found for this BU</option>'
+      : '<option value="" selected disabled>— Select credential —</option>' + filtered.map(c => `<option value="${escapeHtml(c.credential_id)}">${escapeHtml(c.credential_id)} — ${escapeHtml(c.type)}</option>`).join('');
+    showGrantCredDetail();
+  }
+
+  function showGrantCredDetail() {
+    const credSelect = document.getElementById('grantCredId');
+    const detailPanel = document.getElementById('grantCredDetail');
+    const credId = credSelect.value;
+    if (!credId) { detailPanel.style.display = 'none'; return; }
+    const cred = _grantAllCreds.find(c => c.credential_id === credId);
+    if (!cred) { detailPanel.style.display = 'none'; return; }
+    
+    // Minimal Read-Only Panel
+    detailPanel.innerHTML = `
+      <span style="color:var(--text-muted)">Account Identifier&nbsp;&nbsp;</span><span style="color:var(--text);font-family:var(--mono);font-size:12px">${escapeHtml(cred.account_identifier)}</span>
+      ${cred.remarks ? `<br><span style="color:var(--text-muted)">Remarks&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${escapeHtml(cred.remarks)}</span>` : ''}
+    `;
+    detailPanel.style.display = 'block';
+  }
+
+  // AUTOCOMPLETE EMPLOYEE SEARCH
+  document.getElementById('grantEmpSearch').addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    const sugContainer = document.getElementById('grantEmpSuggestions');
+    if (!query) {
+      sugContainer.style.display = 'none';
+      return;
+    }
+
+    const availableEmps = _allActiveEmployees.filter(emp => 
+      !_selectedGrantEmployees.some(s => s.employee_id === emp.employee_id) &&
+      (emp.employee_id.toLowerCase().includes(query) || emp.employee_name.toLowerCase().includes(query))
+    );
+
+    if (availableEmps.length === 0) {
+      sugContainer.innerHTML = '<div class="emp-suggestion-item no-matches" style="color:var(--text-muted)">No matches found</div>';
+    } else {
+      sugContainer.innerHTML = availableEmps.slice(0, 10).map(emp => `
+        <div class="emp-suggestion-item" data-id="${escapeHtml(emp.employee_id)}" data-name="${escapeHtml(emp.employee_name)}">
+          ${escapeHtml(emp.employee_id)} — ${escapeHtml(emp.employee_name)}
+        </div>
+      `).join('');
+    }
+    sugContainer.style.display = 'block';
+  });
+
+  // Handle Autocomplete Click
+  document.getElementById('grantEmpSuggestions').addEventListener('click', (e) => {
+    const item = e.target.closest('.emp-suggestion-item');
+    if (!item || item.classList.contains('no-matches')) return;
+    
+    _selectedGrantEmployees.push({ employee_id: item.dataset.id, employee_name: item.dataset.name });
+    document.getElementById('grantEmpSearch').value = '';
+    document.getElementById('grantEmpSuggestions').style.display = 'none';
+    renderGrantEmpChips();
+  });
+
+  // Handle Chip Removal Click
+  document.getElementById('grantEmpChips').addEventListener('click', (e) => {
+    if (e.target.classList.contains('emp-chip-remove')) {
+      const id = e.target.dataset.id;
+      _selectedGrantEmployees = _selectedGrantEmployees.filter(emp => emp.employee_id !== id);
+      renderGrantEmpChips();
+    }
+  });
+
+  // Hide suggestions if clicked outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.emp-search-container')) {
+      document.getElementById('grantEmpSuggestions').style.display = 'none';
+    }
+  });
+
+  function renderGrantEmpChips() {
+    const container = document.getElementById('grantEmpChips');
+    container.innerHTML = _selectedGrantEmployees.map(emp => `
+      <div class="emp-chip">
+        ${escapeHtml(emp.employee_id)} — ${escapeHtml(emp.employee_name)}
+        <button type="button" class="emp-chip-remove" data-id="${escapeHtml(emp.employee_id)}">×</button>
+      </div>
+    `).join('');
+  }
+
+  // Submit Grant Access
   document.getElementById('confirmGrantBtn').addEventListener('click', async () => {
     const credentialId = document.getElementById('grantCredId').value;
-    const checked = Array.from(document.querySelectorAll('.grant-emp-checkbox:checked'));
+    if (!document.getElementById('grantBuFilter').value) { showToast('Select a business unit', true); return; }
     if (!credentialId) { showToast('Select a credential', true); return; }
-    if (checked.length === 0) { showToast('Select at least one employee', true); return; }
+    if (_selectedGrantEmployees.length === 0) { showToast('Search and select at least one employee', true); return; }
 
-    const employees = checked.map(cb => ({ employeeId: cb.value, employeeName: cb.dataset.name }));
+    const employees = _selectedGrantEmployees.map(emp => ({ employeeId: emp.employee_id, employeeName: emp.employee_name }));
 
     const btn = document.getElementById('confirmGrantBtn');
     const originalText = btn.textContent;
@@ -1519,81 +1715,6 @@
     }
   });
 
-  let _grantAllCreds = [];
-
-  document.getElementById('grantAccessBtn').addEventListener('click', async () => {
-    const credSelect = document.getElementById('grantCredId');
-    const empList = document.getElementById('grantEmpList');
-    const buFilter = document.getElementById('grantBuFilter');
-    const detailPanel = document.getElementById('grantCredDetail');
-
-    credSelect.innerHTML = '<option>Loading…</option>';
-    empList.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Loading…</div>';
-    detailPanel.style.display = 'none';
-    buFilter.selectedIndex = 0;
-    openModal('grantModal');
-
-    // Populate BU filter from the already-loaded prefixes in buFilter on main page
-    const existingOptions = document.getElementById('buFilter').options;
-    buFilter.innerHTML = '<option value="">All business units</option>';
-    for (let i = 1; i < existingOptions.length; i++) {
-      buFilter.innerHTML += `<option value="${existingOptions[i].value}">${existingOptions[i].text}</option>`;
-    }
-
-    try {
-      _grantAllCreds = await callApi('listCredentials');
-      filterGrantCredentials();
-    } catch (err) {
-      credSelect.innerHTML = '<option value="">Error loading — click Grant access again to retry</option>';
-      showToast('Could not load credentials: ' + err.message, true);
-    }
-
-    try {
-      const employees = await callApi('listEmployeesFromSettings');
-      const activeEmployees = employees.filter(e => e.status === 'Active');
-      empList.innerHTML = activeEmployees.length === 0
-        ? '<div style="color:var(--text-muted);font-size:13px">No active employees found in Settings</div>'
-        : activeEmployees.map(e => `
-            <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;font-weight:400;text-transform:none;letter-spacing:normal;cursor:pointer">
-              <input type="checkbox" class="grant-emp-checkbox" value="${e.employee_id}" data-name="${e.employee_name}" style="width:auto;margin:0">
-              ${e.employee_id} — ${e.employee_name}
-            </label>
-          `).join('');
-    } catch (err) {
-      empList.innerHTML = '<div style="color:var(--accent-red);font-size:13px">Error loading — click Grant access again to retry</div>';
-      showToast('Could not load employees: ' + err.message, true);
-    }
-  });
-
-  function filterGrantCredentials() {
-    const bu = document.getElementById('grantBuFilter').value;
-    const credSelect = document.getElementById('grantCredId');
-    const detailPanel = document.getElementById('grantCredDetail');
-    const filtered = bu ? _grantAllCreds.filter(c => c.bu === bu) : _grantAllCreds;
-    detailPanel.style.display = 'none';
-    credSelect.innerHTML = filtered.length === 0
-      ? '<option value="">No credentials found for this BU</option>'
-      : filtered.map(c => `<option value="${c.credential_id}">${c.credential_id} — ${c.type}</option>`).join('');
-    showGrantCredDetail();
-  }
-
-  function showGrantCredDetail() {
-    const credSelect = document.getElementById('grantCredId');
-    const detailPanel = document.getElementById('grantCredDetail');
-    const credId = credSelect.value;
-    if (!credId) { detailPanel.style.display = 'none'; return; }
-    const cred = _grantAllCreds.find(c => c.credential_id === credId);
-    if (!cred) { detailPanel.style.display = 'none'; return; }
-    detailPanel.innerHTML = `
-      <span style="color:var(--text-muted)">Username&nbsp;&nbsp;</span><span style="color:var(--text);font-family:var(--mono);font-size:12px">${cred.account_identifier}</span><br>
-      <span style="color:var(--text-muted)">BU&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${cred.bu}</span><br>
-      <span style="color:var(--text-muted)">Sensitivity&nbsp;</span><span class="status-pill sensitivity-${(cred.sensitivity || 'Medium').toLowerCase()}" style="font-size:10px">${cred.sensitivity || 'Medium'}</span><br>
-      <span style="color:var(--text-muted)">Status&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span class="status-pill ${cred.status === 'Active' ? 'status-active' : 'status-pending'}" style="font-size:10px">${cred.status}</span>
-      ${cred.remarks ? `<br><span style="color:var(--text-muted)">Remarks&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${cred.remarks}</span>` : ''}
-    `;
-    detailPanel.style.display = 'block';
-  }
-
   // Relieve
   document.getElementById('relieveBtn').addEventListener('click', async () => {
     const select = document.getElementById('relieveEmpId');
@@ -1606,7 +1727,7 @@
       const empData = await callApi('getEmployeeDashboard');
       select.innerHTML = empData.length === 0
         ? '<option value="">No employees currently hold active access</option>'
-        : empData.map(e => `<option value="${e.employee_id}">${e.employee_id} — ${e.employee_name} (${e.active_credential_count} credential${e.active_credential_count === 1 ? '' : 's'})</option>`).join('');
+        : empData.map(e => `<option value="${escapeHtml(e.employee_id)}">${escapeHtml(e.employee_id)} — ${escapeHtml(e.employee_name)} (${e.active_credential_count} credential${e.active_credential_count === 1 ? '' : 's'})</option>`).join('');
     } catch (err) {
       select.innerHTML = '<option value="">Error loading</option>';
       showToast(err.message, true);
@@ -1655,7 +1776,6 @@
 
   // ====================== GENERAL UX: modal keyboard/click behavior ======================
   document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-    // Click outside the modal box closes it
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) backdrop.classList.remove('active');
     });
@@ -1676,8 +1796,6 @@
     }
   });
 
-  // Safety net: ensure Enter on the login fields submits even if the browser's
-  // native form-submit behavior is blocked by something on the page.
   document.getElementById('password').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -1734,20 +1852,22 @@
       }
       const rows = creds.map(c => `
         <tr>
-          <td class="cred-id">${c.credential_id}</td>
-          <td>${c.type}</td>
-          <td>${c.account_identifier}</td>
-          <td>${c.bu}</td>
-          <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${c.sensitivity || 'Medium'}</span></td>
+          <td class="cred-id">${escapeHtml(c.credential_id)}</td>
+          <td>${escapeHtml(c.type)}</td>
+          <td>${escapeHtml(c.account_identifier)}</td>
+          <td>${escapeHtml(c.bu)}</td>
+          <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${escapeHtml(c.sensitivity || 'Medium')}</span></td>
           <td>${c.created_date ? new Date(c.created_date).toLocaleDateString() : ''}</td>
         </tr>
       `).join('');
 
       container.innerHTML = `
-        <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Created</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Created</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       `;
     } catch (err) {
       container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
@@ -1766,23 +1886,25 @@
       }
       const rows = users.map(u => `
         <tr>
-          <td class="cred-id">${u.user_id}</td>
-          <td>${u.username}</td>
-          <td><span class="status-pill ${u.role === 'Admin' ? 'status-active' : 'status-rotated'}">${u.role}</span></td>
-          <td>${u.status}</td>
+          <td class="cred-id">${escapeHtml(u.user_id)}</td>
+          <td>${escapeHtml(u.username)}</td>
+          <td><span class="status-pill ${u.role === 'Admin' ? 'status-active' : 'status-rotated'}">${escapeHtml(u.role)}</span></td>
+          <td>${escapeHtml(u.status)}</td>
           <td>${u.created_date ? new Date(u.created_date).toLocaleDateString() : ''}</td>
-          <td>${
+          <td class="td-actions">${
             u.status !== 'Active' ? '—' :
             u.username === session.username ? '<span style="color:var(--text-muted);font-size:12px">(you)</span>' :
-            `<button class="btn-sm btn-danger" onclick="deactivateVaultUser('${u.user_id}', '${u.username}')">Deactivate</button>`
+            `<button class="btn-sm btn-danger" onclick="deactivateVaultUser('${escapeHtml(u.user_id)}', '${escapeHtml(u.username)}')">Deactivate</button>`
           }</td>
         </tr>
       `).join('');
       container.innerHTML = `
-        <table>
-          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       `;
     } catch (err) {
       container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
@@ -1855,13 +1977,13 @@
       const tiles = buData.map(bu => {
         const isSecure = bu.insecure === 0;
         const typeRows = Object.keys(bu.byType).map(type =>
-          `<div><span>${type}</span><span>${bu.byType[type]}</span></div>`
+          `<div><span>${escapeHtml(type)}</span><span>${bu.byType[type]}</span></div>`
         ).join('');
 
         return `
           <div class="tile">
             <div class="tile-header">
-              <span class="tile-title">${bu.bu}</span>
+              <span class="tile-title">${escapeHtml(bu.bu)}</span>
               <span class="pulse-dot ${isSecure ? 'pulse-green' : 'pulse-red'}"></span>
             </div>
             <div class="tile-stat-row"><span>Total credentials</span><strong>${bu.total}</strong></div>
@@ -1902,24 +2024,24 @@
         const typeCounts = {};
         (emp.credentials || []).forEach(c => { typeCounts[c.type] = (typeCounts[c.type] || 0) + 1; });
         const typeRows = Object.keys(typeCounts).map(type =>
-          `<div><span>${type}</span><span>${typeCounts[type]}</span></div>`
+          `<div><span>${escapeHtml(type)}</span><span>${typeCounts[type]}</span></div>`
         ).join('');
 
         return `
         <div class="tile ${emp.needs_attention ? 'attention' : ''}">
           <div class="tile-header">
             <div>
-              <div class="tile-employee-name">${emp.employee_name}</div>
-              <div class="tile-employee-id">${emp.employee_id}</div>
+              <div class="tile-employee-name">${escapeHtml(emp.employee_name)}</div>
+              <div class="tile-employee-id">${escapeHtml(emp.employee_id)}</div>
             </div>
             <span class="pulse-dot ${emp.needs_attention ? 'pulse-red' : 'pulse-green'}"></span>
           </div>
-          <div class="tile-stat-row"><span>Status</span><strong>${emp.status}</strong></div>
+          <div class="tile-stat-row"><span>Status</span><strong>${escapeHtml(emp.status)}</strong></div>
           <div class="tile-stat-row"><span>Active credentials held</span><strong>${emp.active_credential_count}</strong></div>
           <div class="tile-type-breakdown">${typeRows}</div>
           <div style="display:flex;gap:12px;margin-top:20px">
-            <button class="btn-sm" style="flex:1; margin:0;" onclick="viewEmployeeGrants('${emp.employee_id}')">View details</button>
-            ${session.role === 'Admin' ? `<button class="btn-sm btn-danger" style="flex:1; margin:0;" onclick="relieveFromTile('${emp.employee_id}')">Revoke all</button>` : ''}
+            <button class="btn-sm" style="flex:1; margin:0;" onclick="viewEmployeeGrants('${escapeHtml(emp.employee_id)}')">View details</button>
+            ${session.role === 'Admin' ? `<button class="btn-sm btn-danger" style="flex:1; margin:0;" onclick="relieveFromTile('${escapeHtml(emp.employee_id)}')">Revoke all</button>` : ''}
           </div>
         </div>`;
       }).join('');
