@@ -332,7 +332,7 @@
 
   main {
     padding: 32px;
-    max-width: 95%;
+    max-width: 1200px;
     margin: 0 auto;
     animation: fadeIn 0.4s ease;
   }
@@ -983,13 +983,10 @@
     <h3>Grant access</h3>
     <label for="grantBuFilter">Business unit</label>
     <select id="grantBuFilter" onchange="filterGrantCredentials()">
-      <option value="" selected disabled>— Select business unit —</option>
-      <option value="*">All business units</option>
+      <option value="">All business units</option>
     </select>
     <label for="grantCredId">Credential</label>
-    <select id="grantCredId" onchange="showGrantCredDetail()" disabled>
-      <option value="" selected disabled>— Select credential —</option>
-    </select>
+    <select id="grantCredId" onchange="showGrantCredDetail()"></select>
     <div id="grantCredDetail" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:-12px;margin-bottom:20px;font-size:13px;color:var(--text-muted);line-height:2"></div>
     <label>Employees (select one or more)</label>
     <div id="grantEmpList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:20px;background:var(--bg)"></div>
@@ -1327,7 +1324,7 @@
     container.innerHTML = `
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1468,7 +1465,7 @@
 
       container.innerHTML = `
         <table>
-          <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -1496,7 +1493,6 @@
   document.getElementById('confirmGrantBtn').addEventListener('click', async () => {
     const credentialId = document.getElementById('grantCredId').value;
     const checked = Array.from(document.querySelectorAll('.grant-emp-checkbox:checked'));
-    if (!document.getElementById('grantBuFilter').value) { showToast('Select a business unit', true); return; }
     if (!credentialId) { showToast('Select a credential', true); return; }
     if (checked.length === 0) { showToast('Select at least one employee', true); return; }
 
@@ -1531,8 +1527,7 @@
     const buFilter = document.getElementById('grantBuFilter');
     const detailPanel = document.getElementById('grantCredDetail');
 
-    credSelect.disabled = true;
-    credSelect.innerHTML = '<option value="" selected disabled>— Select credential —</option>';
+    credSelect.innerHTML = '<option>Loading…</option>';
     empList.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Loading…</div>';
     detailPanel.style.display = 'none';
     buFilter.selectedIndex = 0;
@@ -1540,7 +1535,7 @@
 
     // Populate BU filter from the already-loaded prefixes in buFilter on main page
     const existingOptions = document.getElementById('buFilter').options;
-    buFilter.innerHTML = '<option value="" selected disabled>— Select business unit —</option><option value="*">All business units</option>';
+    buFilter.innerHTML = '<option value="">All business units</option>';
     for (let i = 1; i < existingOptions.length; i++) {
       buFilter.innerHTML += `<option value="${existingOptions[i].value}">${existingOptions[i].text}</option>`;
     }
@@ -1574,16 +1569,11 @@
     const bu = document.getElementById('grantBuFilter').value;
     const credSelect = document.getElementById('grantCredId');
     const detailPanel = document.getElementById('grantCredDetail');
+    const filtered = bu ? _grantAllCreds.filter(c => c.bu === bu) : _grantAllCreds;
     detailPanel.style.display = 'none';
-    credSelect.disabled = !bu;
-    if (!bu) {
-      credSelect.innerHTML = '<option value="" selected disabled>— Select credential —</option>';
-      return;
-    }
-    const filtered = bu === '*' ? _grantAllCreds : _grantAllCreds.filter(c => c.bu === bu);
     credSelect.innerHTML = filtered.length === 0
       ? '<option value="">No credentials found for this BU</option>'
-      : '<option value="" selected disabled>— Select credential —</option>' + filtered.map(c => `<option value="${c.credential_id}">${c.credential_id} — ${c.type}</option>`).join('');
+      : filtered.map(c => `<option value="${c.credential_id}">${c.credential_id} — ${c.type}</option>`).join('');
     showGrantCredDetail();
   }
 
@@ -1595,8 +1585,11 @@
     const cred = _grantAllCreds.find(c => c.credential_id === credId);
     if (!cred) { detailPanel.style.display = 'none'; return; }
     detailPanel.innerHTML = `
-      <span style="color:var(--text-muted)">Account Identifier&nbsp;&nbsp;</span><span style="color:var(--text);font-family:var(--mono);font-size:12px">${cred.account_identifier}</span><br>
-      ${cred.remarks ? `<span style="color:var(--text-muted)">Remarks&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${cred.remarks}</span>` : ''}
+      <span style="color:var(--text-muted)">Username&nbsp;&nbsp;</span><span style="color:var(--text);font-family:var(--mono);font-size:12px">${cred.account_identifier}</span><br>
+      <span style="color:var(--text-muted)">BU&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${cred.bu}</span><br>
+      <span style="color:var(--text-muted)">Sensitivity&nbsp;</span><span class="status-pill sensitivity-${(cred.sensitivity || 'Medium').toLowerCase()}" style="font-size:10px">${cred.sensitivity || 'Medium'}</span><br>
+      <span style="color:var(--text-muted)">Status&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span class="status-pill ${cred.status === 'Active' ? 'status-active' : 'status-pending'}" style="font-size:10px">${cred.status}</span>
+      ${cred.remarks ? `<br><span style="color:var(--text-muted)">Remarks&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${cred.remarks}</span>` : ''}
     `;
     detailPanel.style.display = 'block';
   }
@@ -1787,7 +1780,7 @@
       `).join('');
       container.innerHTML = `
         <table>
-          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
