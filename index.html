@@ -1616,8 +1616,11 @@
     
     // Minimal Read-Only Panel
     detailPanel.innerHTML = `
-      <span style="color:var(--text-muted)">Account Identifier&nbsp;&nbsp;</span><span style="color:var(--text);font-family:var(--mono);font-size:12px">${escapeHtml(cred.account_identifier)}</span>
-      ${cred.remarks ? `<br><span style="color:var(--text-muted)">Remarks&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${escapeHtml(cred.remarks)}</span>` : ''}
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:start">
+        <span style="color:var(--text-muted);white-space:nowrap">Identifier</span>
+        <span style="color:var(--text);font-family:var(--mono);font-size:12px;word-break:break-all">${escapeHtml(cred.account_identifier)}</span>
+        ${cred.remarks ? `<span style="color:var(--text-muted);white-space:nowrap">Remarks</span><span style="color:var(--text)">${escapeHtml(cred.remarks)}</span>` : ''}
+      </div>
     `;
     detailPanel.style.display = 'block';
   }
