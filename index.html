@@ -1306,14 +1306,14 @@
           <td>${escapeHtml(c.bu)}</td>
           <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${escapeHtml(c.sensitivity || 'Medium')}</span></td>
           <td><span class="status-pill status-pending">Pending Rotation</span></td>
-          <td class="td-actions">${session.role === 'Admin' ? `<button class="btn-sm" onclick="openRotateModal('${escapeHtml(c.credential_id)}')">Rotate</button>` : ''}</td>
+          ${session.role === 'Admin' ? `<td class="td-actions"><button class="btn-sm" onclick="openRotateModal('${escapeHtml(c.credential_id)}')">Rotate</button></td>` : ''}
         </tr>
       `).join('');
 
       container.innerHTML = `
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th>${session.role === 'Admin' ? '<th></th>' : ''}</tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
@@ -1363,20 +1363,20 @@
         <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${escapeHtml(c.sensitivity || 'Medium')}</span></td>
         <td><span class="status-pill ${statusClass}">${escapeHtml(c.status)}</span></td>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(c.remarks || '')}">${escapeHtml(c.remarks || '—')}</td>
+        ${session.role === 'Admin' ? `
         <td class="td-actions">
-          ${session.role === 'Admin' ? `
             <button class="btn-sm" onclick="revealCred('${escapeHtml(c.credential_id)}')">Reveal</button>
             <button class="btn-sm" onclick="openRotateModal('${escapeHtml(c.credential_id)}')">Rotate</button>
             <button class="btn-sm btn-danger" onclick="retireCred('${escapeHtml(c.credential_id)}')">Retire</button>
-          ` : ''}
         </td>
+        ` : ''}
       </tr>`;
     }).join('');
 
     container.innerHTML = `
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th>${session.role === 'Admin' ? '<th>Actions</th>' : ''}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1511,14 +1511,16 @@
           <td>${escapeHtml(g.employee_id)}</td>
           <td>${escapeHtml(g.employee_name)}</td>
           <td>${g.revoked_date ? '<span class="status-pill status-pending">Revoked</span>' : '<span class="status-pill status-active">Active</span>'}</td>
-          <td class="td-actions">${(!g.revoked_date && session.role === 'Admin') ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${escapeHtml(g.grant_id)}')">Revoke</button>` : ''}</td>
+          ${session.role === 'Admin' ? `
+          <td class="td-actions">${!g.revoked_date ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${escapeHtml(g.grant_id)}')">Revoke</button>` : ''}</td>
+          ` : ''}
         </tr>
       `).join('');
 
       container.innerHTML = `
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th>${session.role === 'Admin' ? '<th>Actions</th>' : ''}</tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
