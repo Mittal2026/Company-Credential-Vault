@@ -1134,7 +1134,7 @@
     // Apps Script cold-start returns an HTML page instead of JSON.
     // Detect it and retry once automatically after a short wait.
     if (text.trim().startsWith('<') && !isRetry) {
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 3500));
       return callApi(action, params, true);
     }
     const json = JSON.parse(text);
@@ -1203,7 +1203,7 @@
     });
     const text = await res.text();
     if (text.trim().startsWith('<') && !isRetry) {
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 3500));
       return callApiRaw(action, params, true);
     }
     const json = JSON.parse(text);
