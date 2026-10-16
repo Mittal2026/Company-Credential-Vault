@@ -634,6 +634,24 @@
   }
   .emp-chip-remove:hover { color: var(--accent-red); }
 
+  .reconnect-banner {
+    position: fixed;
+    top: 76px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface-raised);
+    border: 1px solid var(--accent-amber);
+    color: var(--accent-amber);
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: var(--shadow-md);
+    z-index: 300;
+    display: none;
+  }
+  .reconnect-banner.show { display: block; }
+
   .toast {
     position: fixed;
     bottom: 32px;
@@ -882,6 +900,9 @@
         <select id="buFilter">
           <option value="">All business units</option>
         </select>
+        <select id="typeFilter">
+          <option value="">All types</option>
+        </select>
       </div>
       <div id="credentialsContent"></div>
     </div>
@@ -950,6 +971,7 @@
   </main>
 </div>
 
+<div class="reconnect-banner" id="reconnectBanner">Reconnecting to server…</div>
 <div class="toast" id="toast"></div>
 
 <!-- Reveal Modal -->
@@ -1043,7 +1065,8 @@
     <h3>Relieve an employee</h3>
     <p style="color:var(--text-muted);font-size:13px;margin-top:0;margin-bottom:20px;line-height:1.5">This revokes every active access grant for this employee and flags all affected credentials for rotation.</p>
     <label for="relieveEmpId">Employee</label>
-    <select id="relieveEmpId"></select>
+    <select id="relieveEmpId" onchange="updateRelieveCredCount()"></select>
+    <div id="relieveCredCount" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-top:-12px;margin-bottom:20px;font-size:13px;color:var(--text-muted)"></div>
     <label for="relieveReason">Reason</label>
     <select id="relieveReason">
       <option value="Relieved">Relieved</option>
@@ -1105,9 +1128,44 @@
   </div>
 </div>
 
+<!-- Deactivate User Modal -->
+<div class="modal-backdrop" id="deactivateModal">
+  <div class="modal">
+    <h3>Deactivate user</h3>
+    <p id="deactivateMsg" style="color:var(--text-muted);font-size:13px;margin-top:0;margin-bottom:20px;line-height:1.5"></p>
+    <input type="hidden" id="deactivateUserId">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('deactivateModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto;background:var(--accent-red);color:#fff" id="confirmDeactivateBtn">Deactivate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Revoke Grant Modal -->
+<div class="modal-backdrop" id="revokeModal">
+  <div class="modal">
+    <h3>Revoke access</h3>
+    <p style="color:var(--text-muted);font-size:13px;margin-top:0;margin-bottom:20px;line-height:1.5">This revokes the grant and flags the credential for rotation.</p>
+    <input type="hidden" id="revokeGrantId">
+    <label for="revokeReason">Reason</label>
+    <select id="revokeReason">
+      <option value="Employee leaving">Employee leaving</option>
+      <option value="Role change">Role change</option>
+      <option value="Security concern">Security concern</option>
+      <option value="No longer needed">No longer needed</option>
+      <option value="Other">Other (specify)</option>
+    </select>
+    <input type="text" id="revokeReasonOther" placeholder="Specify reason" style="display:none">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('revokeModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto;background:var(--accent-red);color:#fff" id="confirmRevokeBtn">Revoke</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ====================== CONFIG ======================
-  const API_URL = 'https://script.google.com/macros/s/AKfycbwWIHANkmXtsgJ7AxV33oaWKXiWempSChtQEbV_n7OGAArp5lxerqzE9Dyr4HU0G6QQ/exec'; // <-- replace with your deployed Apps Script web app URL
+  const API_URL = 'https://script.google.com/macros/s/AKfycbz2VauPbCXs-iCb0JVgoleXvyUPsZxvlW3e1T_B5LOKu7JYBQbEBqCyGGzQls0T1-lf/exec'; // <-- replace with your deployed Apps Script web app URL
 
   // ====================== STATE ======================
   let session = { token: null, username: null, role: null };
@@ -1122,24 +1180,118 @@
     })[char]);
   }
 
+  // Shown when a tab can't load: plain-English message plus a Try again button.
+  // The tab is also marked "not loaded" so switching back to it fetches fresh data.
+  function renderLoadError(container, err, retryFn, viewName) {
+    if (viewName) loadedViews[viewName] = false;
+    const message = err && err.name === 'ConnectionError'
+      ? err.message
+      : 'Something went wrong: ' + (err && err.message ? err.message : 'unknown error');
+    container.innerHTML = `<div class="empty-state">${escapeHtml(message)}<br><button class="btn-sm" type="button" data-retry style="margin-top:16px">Try again</button></div>`;
+    container.querySelector('[data-retry]').addEventListener('click', () => retryFn());
+  }
+
   // ====================== API HELPER ======================
-  async function callApi(action, params = {}, isRetry = false) {
-    const body = Object.assign({ action, token: session.token }, params);
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body)
-    });
-    const text = await res.text();
-    // Apps Script cold-start returns an HTML page instead of JSON.
-    // Detect it and retry once automatically after a short wait.
-    if (text.trim().startsWith('<') && !isRetry) {
-      await new Promise(r => setTimeout(r, 3500));
-      return callApi(action, params, true);
+  // Actions that change data. These are retried at most once, and never after a
+  // network failure, because the first attempt may have gone through and a blind
+  // retry could create a duplicate or a confusing "already revoked" error.
+  const WRITE_ACTIONS = new Set([
+    'createCredential', 'grantAccess', 'batchGrantAccess', 'revokeAccess',
+    'relieveEmployee', 'rotateCredential', 'deleteCredential',
+    'createVaultUser', 'deactivateVaultUser'
+  ]);
+
+  // What each action must return. A reply of the wrong shape (for example the
+  // server's plain-text health message) is treated as a failed attempt.
+  const ARRAY_ACTIONS = new Set([
+    'listCredentials', 'listPendingRotation', 'listAccessGrants', 'listObsoleteCredentials',
+    'listVaultUsers', 'getBuDashboard', 'getEmployeeDashboard', 'listEmployeesFromSettings',
+    'listBusinessUnitsFromSettings', 'listCredentialTypesFromSettings'
+  ]);
+  const OBJECT_ACTIONS = new Set(['login', 'revealCredential', 'batchGrantAccess', 'relieveEmployee']);
+
+  const RETRY_PAUSES_MS = [2000, 4000, 6000];   // growing wait between attempts
+  const REQUEST_TIMEOUT_MS = 45000;             // give up on a hung request
+
+  class ConnectionError extends Error {
+    constructor(message) { super(message); this.name = 'ConnectionError'; }
+  }
+
+  function _shapeOk(action, data) {
+    if (ARRAY_ACTIONS.has(action)) return Array.isArray(data);
+    if (OBJECT_ACTIONS.has(action)) return data !== null && typeof data === 'object' && !Array.isArray(data);
+    return true;
+  }
+
+  let _reconnectCount = 0;
+  function _setReconnecting(delta) {
+    _reconnectCount = Math.max(0, _reconnectCount + delta);
+    const banner = document.getElementById('reconnectBanner');
+    if (banner) banner.classList.toggle('show', _reconnectCount > 0);
+  }
+
+  async function _request(action, body) {
+    const isWrite = WRITE_ACTIONS.has(action);
+    const maxRetries = isWrite ? 1 : RETRY_PAUSES_MS.length;
+    const unconfirmedMsg = "Couldn't confirm that went through. Please check the list before trying again.";
+    const unreachableMsg = "Couldn't reach the server. This usually clears up in a moment, so please try again.";
+    let attempt = 0;
+    let showingBanner = false;
+
+    try {
+      while (true) {
+        let failure = null; // 'network' or 'bad-reply'
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+          let text;
+          try {
+            const res = await fetch(API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(body),
+              signal: controller.signal
+            });
+            text = await res.text();
+          } finally {
+            clearTimeout(timer);
+          }
+
+          let json = null;
+          try { json = JSON.parse(text); } catch (e) { failure = 'bad-reply'; }
+
+          if (!failure) {
+            if (!json || typeof json !== 'object' || typeof json.success !== 'boolean') {
+              failure = 'bad-reply';
+            } else if (!json.success) {
+              // A real answer from the server (e.g. "Forbidden"): show it, don't retry.
+              throw new Error(json.error || 'Unknown error');
+            } else if (!_shapeOk(action, json.data)) {
+              failure = 'bad-reply';
+            } else {
+              return json.data;
+            }
+          }
+        } catch (err) {
+          if (err.name === 'TypeError' || err.name === 'AbortError') failure = 'network';
+          else throw err;
+        }
+
+        // A write whose outcome is unknown must not be blindly repeated.
+        if (isWrite && failure === 'network') throw new ConnectionError(unconfirmedMsg);
+        if (attempt >= maxRetries) throw new ConnectionError(isWrite ? unconfirmedMsg : unreachableMsg);
+
+        if (!showingBanner) { showingBanner = true; _setReconnecting(1); }
+        await new Promise(r => setTimeout(r, RETRY_PAUSES_MS[attempt]));
+        attempt++;
+      }
+    } finally {
+      if (showingBanner) _setReconnecting(-1);
     }
-    const json = JSON.parse(text);
-    if (!json.success) throw new Error(json.error || 'Unknown error');
-    return json.data;
+  }
+
+  function callApi(action, params = {}) {
+    return _request(action, Object.assign({ action, token: session.token }, params));
   }
 
   function showToast(message, isError = false) {
@@ -1195,20 +1347,8 @@
   });
 
   // login has no token yet, so it can't reuse callApi() as-is
-  async function callApiRaw(action, params, isRetry = false) {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ action }, params))
-    });
-    const text = await res.text();
-    if (text.trim().startsWith('<') && !isRetry) {
-      await new Promise(r => setTimeout(r, 3500));
-      return callApiRaw(action, params, true);
-    }
-    const json = JSON.parse(text);
-    if (!json.success) throw new Error(json.error || 'Unknown error');
-    return json.data;
+  function callApiRaw(action, params) {
+    return _request(action, Object.assign({ action }, params));
   }
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -1235,6 +1375,10 @@
       const newCredTypeEl = document.getElementById('newCredType');
       newCredTypeEl.innerHTML = types.map(t => `<option value="${t}">${t}</option>`).join('') +
         '<option value="Other">Other (specify)</option>';
+
+      const typeFilterEl = document.getElementById('typeFilter');
+      typeFilterEl.innerHTML = '<option value="">All types</option>' +
+        types.map(t => `<option value="${t}">${t}</option>`).join('');
     } catch (err) {
       showToast('Could not load Settings lists: ' + err.message, true);
     }
@@ -1306,20 +1450,20 @@
           <td>${escapeHtml(c.bu)}</td>
           <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${escapeHtml(c.sensitivity || 'Medium')}</span></td>
           <td><span class="status-pill status-pending">Pending Rotation</span></td>
-          ${session.role === 'Admin' ? `<td class="td-actions"><button class="btn-sm" onclick="openRotateModal('${escapeHtml(c.credential_id)}')">Rotate</button></td>` : ''}
+          <td class="td-actions">${session.role === 'Admin' ? `<button class="btn-sm" onclick="openRotateModal('${escapeHtml(c.credential_id)}')">Rotate</button>` : ''}</td>
         </tr>
       `).join('');
 
       container.innerHTML = `
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th>${session.role === 'Admin' ? '<th></th>' : ''}</tr></thead>
+            <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
       `;
     } catch (err) {
-      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+      renderLoadError(container, err, loadPendingRotation, 'pendingView');
     }
   }
 
@@ -1337,20 +1481,24 @@
       credPage = 1;
       renderCredentialsPage();
     } catch (err) {
-      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+      renderLoadError(container, err, loadCredentials, 'credentialsView');
     }
   }
 
   function renderCredentialsPage() {
     const container = document.getElementById('credentialsContent');
-    if (allCreds.length === 0) {
-      container.innerHTML = '<div class="empty-state">No credentials yet.</div>';
+    const typeFilter = document.getElementById('typeFilter').value;
+    const filtered = typeFilter ? allCreds.filter(c => c.type === typeFilter) : allCreds;
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty-state">No credentials found.</div>';
       return;
     }
 
-    const totalPages = Math.ceil(allCreds.length / CREDS_PER_PAGE);
+    const totalPages = Math.ceil(filtered.length / CREDS_PER_PAGE);
+    credPage = Math.min(credPage, totalPages);
     const start = (credPage - 1) * CREDS_PER_PAGE;
-    const pageItems = allCreds.slice(start, start + CREDS_PER_PAGE);
+    const pageItems = filtered.slice(start, start + CREDS_PER_PAGE);
 
     const rows = pageItems.map(c => {
       const statusClass = c.status === 'Active' ? 'status-active' : c.status === 'Pending Rotation' ? 'status-pending' : 'status-rotated';
@@ -1363,25 +1511,25 @@
         <td><span class="status-pill sensitivity-${(c.sensitivity || 'Medium').toLowerCase()}">${escapeHtml(c.sensitivity || 'Medium')}</span></td>
         <td><span class="status-pill ${statusClass}">${escapeHtml(c.status)}</span></td>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(c.remarks || '')}">${escapeHtml(c.remarks || '—')}</td>
-        ${session.role === 'Admin' ? `
         <td class="td-actions">
+          ${session.role === 'Admin' ? `
             <button class="btn-sm" onclick="revealCred('${escapeHtml(c.credential_id)}')">Reveal</button>
             <button class="btn-sm" onclick="openRotateModal('${escapeHtml(c.credential_id)}')">Rotate</button>
             <button class="btn-sm btn-danger" onclick="retireCred('${escapeHtml(c.credential_id)}')">Retire</button>
+          ` : ''}
         </td>
-        ` : ''}
       </tr>`;
     }).join('');
 
     container.innerHTML = `
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th>${session.role === 'Admin' ? '<th>Actions</th>' : ''}</tr></thead>
+          <thead><tr><th>ID</th><th>Type</th><th>Username</th><th>BU</th><th>Sensitivity</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
       <div class="pagination">
-        <span>${allCreds.length} credential${allCreds.length === 1 ? '' : 's'} total</span>
+        <span>${filtered.length} credential${filtered.length === 1 ? '' : 's'}${typeFilter ? ' (filtered)' : ' total'}</span>
         <div class="pagination-controls">
           <button class="btn-sm" onclick="changeCredPage(-1)" ${credPage === 1 ? 'disabled' : ''}>← Previous</button>
           <span class="page-indicator">Page ${credPage} of ${totalPages}</span>
@@ -1392,7 +1540,9 @@
   }
 
   function changeCredPage(direction) {
-    const totalPages = Math.ceil(allCreds.length / CREDS_PER_PAGE);
+    const typeFilter = document.getElementById('typeFilter').value;
+    const filtered = typeFilter ? allCreds.filter(c => c.type === typeFilter) : allCreds;
+    const totalPages = Math.ceil(filtered.length / CREDS_PER_PAGE);
     credPage = Math.max(1, Math.min(totalPages, credPage + direction));
     renderCredentialsPage();
   }
@@ -1400,6 +1550,11 @@
   document.getElementById('buFilter').addEventListener('change', () => {
     credPage = 1;
     loadCredentials();
+  });
+
+  document.getElementById('typeFilter').addEventListener('change', () => {
+    credPage = 1;
+    renderCredentialsPage();
   });
 
   async function revealCred(credId) {
@@ -1511,22 +1666,20 @@
           <td>${escapeHtml(g.employee_id)}</td>
           <td>${escapeHtml(g.employee_name)}</td>
           <td>${g.revoked_date ? '<span class="status-pill status-pending">Revoked</span>' : '<span class="status-pill status-active">Active</span>'}</td>
-          ${session.role === 'Admin' ? `
-          <td class="td-actions">${!g.revoked_date ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${escapeHtml(g.grant_id)}')">Revoke</button>` : ''}</td>
-          ` : ''}
+          <td class="td-actions">${(!g.revoked_date && session.role === 'Admin') ? `<button class="btn-sm btn-danger" onclick="revokeGrant('${escapeHtml(g.grant_id)}')">Revoke</button>` : ''}</td>
         </tr>
       `).join('');
 
       container.innerHTML = `
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th>${session.role === 'Admin' ? '<th>Actions</th>' : ''}</tr></thead>
+            <thead><tr><th>Grant ID</th><th>Credential</th><th>Employee ID</th><th>Employee Name</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
       `;
     } catch (err) {
-      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+      renderLoadError(container, err, loadGrants, 'grantsView');
     }
   }
 
@@ -1535,16 +1688,39 @@
     window._empFilterDebounce = setTimeout(loadGrants, 400);
   });
 
-  async function revokeGrant(grantId) {
-    const reason = prompt('Reason for revoking this grant?');
-    if (reason === null) return; // user clicked Cancel
+  function revokeGrant(grantId) {
+    document.getElementById('revokeGrantId').value = grantId;
+    document.getElementById('revokeReason').value = 'Employee leaving';
+    document.getElementById('revokeReasonOther').style.display = 'none';
+    document.getElementById('revokeReasonOther').value = '';
+    openModal('revokeModal');
+  }
+
+  document.getElementById('revokeReason').addEventListener('change', (e) => {
+    document.getElementById('revokeReasonOther').style.display = e.target.value === 'Other' ? 'block' : 'none';
+  });
+
+  document.getElementById('confirmRevokeBtn').addEventListener('click', async () => {
+    const grantId = document.getElementById('revokeGrantId').value;
+    const reasonSelect = document.getElementById('revokeReason').value;
+    const reason = reasonSelect === 'Other' ? document.getElementById('revokeReasonOther').value.trim() : reasonSelect;
+    if (!reason) { showToast('Specify a reason', true); return; }
+
+    const btn = document.getElementById('confirmRevokeBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Revoking…';
     try {
-      await callApi('revokeAccess', { grantId, reason: reason.trim() || 'Manual revoke' });
+      await callApi('revokeAccess', { grantId, reason });
+      closeModal('revokeModal');
       showToast('Access revoked');
       invalidateCache('pendingView');
       loadGrants();
-    } catch (err) { showToast(err.message, true); }
-  }
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = originalText;
+    }
+  });
 
   // GRANT ACCESS MODAL LOGIC
   document.getElementById('grantAccessBtn').addEventListener('click', async () => {
@@ -1618,11 +1794,8 @@
     
     // Minimal Read-Only Panel
     detailPanel.innerHTML = `
-      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:start">
-        <span style="color:var(--text-muted);white-space:nowrap">Identifier</span>
-        <span style="color:var(--text);font-family:var(--mono);font-size:12px;word-break:break-all">${escapeHtml(cred.account_identifier)}</span>
-        ${cred.remarks ? `<span style="color:var(--text-muted);white-space:nowrap">Remarks</span><span style="color:var(--text)">${escapeHtml(cred.remarks)}</span>` : ''}
-      </div>
+      <span style="color:var(--text-muted)">Account Identifier&nbsp;&nbsp;</span><span style="color:var(--text);font-family:var(--mono);font-size:12px">${escapeHtml(cred.account_identifier)}</span>
+      ${cred.remarks ? `<br><span style="color:var(--text-muted)">Remarks&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="color:var(--text)">${escapeHtml(cred.remarks)}</span>` : ''}
     `;
     detailPanel.style.display = 'block';
   }
@@ -1723,7 +1896,9 @@
   // Relieve
   document.getElementById('relieveBtn').addEventListener('click', async () => {
     const select = document.getElementById('relieveEmpId');
+    const countBox = document.getElementById('relieveCredCount');
     select.innerHTML = '<option>Loading…</option>';
+    countBox.style.display = 'none';
     document.getElementById('relieveReason').value = 'Relieved';
     document.getElementById('relieveReasonOther').style.display = 'none';
     document.getElementById('relieveReasonOther').value = '';
@@ -1732,12 +1907,26 @@
       const empData = await callApi('getEmployeeDashboard');
       select.innerHTML = empData.length === 0
         ? '<option value="">No employees currently hold active access</option>'
-        : empData.map(e => `<option value="${escapeHtml(e.employee_id)}">${escapeHtml(e.employee_id)} — ${escapeHtml(e.employee_name)} (${e.active_credential_count} credential${e.active_credential_count === 1 ? '' : 's'})</option>`).join('');
+        : empData.map(e => `<option value="${escapeHtml(e.employee_id)}" data-count="${e.active_credential_count}">${escapeHtml(e.employee_id)} — ${escapeHtml(e.employee_name)}</option>`).join('');
+      updateRelieveCredCount();
     } catch (err) {
       select.innerHTML = '<option value="">Error loading</option>';
       showToast(err.message, true);
     }
   });
+
+  function updateRelieveCredCount() {
+    const select = document.getElementById('relieveEmpId');
+    const countBox = document.getElementById('relieveCredCount');
+    const selected = select.selectedOptions[0];
+    if (!selected || !selected.value || !selected.dataset.count) {
+      countBox.style.display = 'none';
+      return;
+    }
+    const count = selected.dataset.count;
+    countBox.textContent = `${count} active credential${count === '1' ? '' : 's'} will be revoked and flagged for rotation.`;
+    countBox.style.display = 'block';
+  }
 
   document.getElementById('relieveReason').addEventListener('change', (e) => {
     document.getElementById('relieveReasonOther').style.display = e.target.value === 'Other' ? 'block' : 'none';
@@ -1875,7 +2064,7 @@
         </div>
       `;
     } catch (err) {
-      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+      renderLoadError(container, err, loadObsoleteCredentials, 'obsoleteView');
     }
   }
 
@@ -1912,7 +2101,7 @@
         </div>
       `;
     } catch (err) {
-      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+      renderLoadError(container, err, loadVaultUsers, 'usersView');
     }
   }
 
@@ -1957,17 +2146,30 @@
     }
   });
 
-  async function deactivateVaultUser(userId, username) {
-    if (!confirm(`Deactivate ${username}? They will no longer be able to log in. This can be reversed later by an admin editing the Users sheet directly.`)) return;
+  function deactivateVaultUser(userId, username) {
+    document.getElementById('deactivateUserId').value = userId;
+    document.getElementById('deactivateMsg').textContent =
+      `${username} will no longer be able to log in. This can be reversed later by editing the Users sheet directly.`;
+    openModal('deactivateModal');
+  }
+
+  document.getElementById('confirmDeactivateBtn').addEventListener('click', async () => {
+    const userId = document.getElementById('deactivateUserId').value;
+    const btn = document.getElementById('confirmDeactivateBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Deactivating…';
     try {
       await callApi('deactivateVaultUser', { userId });
-      showToast(username + ' deactivated.');
+      closeModal('deactivateModal');
+      showToast('User deactivated.');
       invalidateCache('usersView');
       loadVaultUsers();
     } catch (err) {
       showToast(err.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = originalText;
     }
-  }
+  });
 
   async function loadBuDashboard() {
     const container = document.getElementById('buDashboardContent');
@@ -2001,7 +2203,7 @@
 
       container.innerHTML = `<div class="tile-grid">${tiles}</div>`;
     } catch (err) {
-      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+      renderLoadError(container, err, loadBuDashboard, 'buDashboardView');
     }
   }
 
@@ -2053,7 +2255,7 @@
 
       container.innerHTML = `<div class="tile-grid">${tiles}</div>`;
     } catch (err) {
-      container.innerHTML = `<div class="empty-state">Error loading: ${err.message}</div>`;
+      renderLoadError(container, err, loadEmployeeDashboard, 'employeeDashboardView');
     }
   }
 
