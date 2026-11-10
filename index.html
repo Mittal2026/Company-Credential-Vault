@@ -10,32 +10,41 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    /* Color Palette */
-    --bg: #0b0f19;
-    --surface: #151b2b;
-    --surface-raised: #1e2638;
-    --border: #2a3449;
-    --text: #f8fafc;
-    --text-muted: #94a3b8;
-    
-    /* Accents */
-    --accent-amber: #f59e0b;
-    --accent-amber-hover: #fbbf24;
-    --accent-red: #ef4444;
-    --accent-red-hover: #f87171;
-    --accent-green: #10b981;
-    
+    color-scheme: light;
+
+    /* Surfaces & text */
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface-raised: #f1f5f9;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --text: #0f172a;
+    --text-muted: #56657a;
+
+    /* Brand */
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-soft: #eef2ff;
+    --accent-border: #c7d2fe;
+
+    /* Status colours (text tones are darkened to stay readable on white) */
+    --accent-amber: #b45309;
+    --accent-red: #dc2626;
+    --accent-red-hover: #b91c1c;
+    --accent-green: #059669;
+    --accent-green-text: #047857;
+
     /* Typography */
     --mono: 'JetBrains Mono', 'Courier New', monospace;
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    
+
     /* UI Scale */
     --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 16px;
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
-    --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+    --shadow-lg: 0 20px 40px -12px rgba(15, 23, 42, 0.22), 0 8px 16px -8px rgba(15, 23, 42, 0.1);
     --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -53,7 +62,7 @@
   /* Custom Scrollbar */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
   /* ============ LOGIN ============ */
@@ -63,7 +72,7 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: radial-gradient(circle at top center, #1a2235 0%, var(--bg) 100%);
+    background: radial-gradient(circle at top center, #eef2ff 0%, var(--bg) 65%);
   }
 
   .login-card {
@@ -82,7 +91,7 @@
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 3px;
-    color: var(--accent-amber);
+    color: var(--accent);
     text-transform: uppercase;
     margin-bottom: 12px;
   }
@@ -92,7 +101,7 @@
     font-weight: 700;
     margin: 0 0 32px 0;
     letter-spacing: -0.02em;
-    color: #ffffff;
+    color: var(--text);
   }
 
   label {
@@ -106,8 +115,8 @@
 
   input, select {
     width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     padding: 12px 14px;
     color: var(--text);
@@ -115,13 +124,13 @@
     font-family: var(--sans);
     margin-bottom: 20px;
     transition: var(--transition);
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   }
 
   input:focus, select:focus, textarea:focus {
     outline: none;
-    border-color: var(--accent-amber);
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15), inset 0 1px 2px rgba(0,0,0,0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
   }
 
   /* --- Password Field Positioning Fix --- */
@@ -134,6 +143,13 @@
   .password-wrapper input {
     margin-bottom: 0; /* Remove double bottom margin */
     padding-right: 42px; /* Prevent text overlap with icon */
+  }
+
+  /* Hide the browser's built-in password reveal/clear controls.
+     The vault uses its own visibility button, so only one icon should appear. */
+  .password-wrapper input[type="password"]::-ms-reveal,
+  .password-wrapper input[type="password"]::-ms-clear {
+    display: none;
   }
 
   .toggle-password-btn {
@@ -175,15 +191,15 @@
 
   .btn-primary {
     width: 100%;
-    background: var(--accent-amber);
-    color: #000000;
-    box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+    background: var(--accent);
+    color: #ffffff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.15);
   }
 
   .btn-primary:hover:not(:disabled) { 
-    background: var(--accent-amber-hover);
+    background: var(--accent-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
   }
 
   .btn-primary:active:not(:disabled) { transform: translateY(0); }
@@ -198,8 +214,8 @@
     font-size: 13px;
     margin-top: 16px;
     padding: 10px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: rgba(220, 38, 38, 0.1);
+    border: 1px solid rgba(220, 38, 38, 0.2);
     border-radius: var(--radius-sm);
     display: none;
     text-align: center;
@@ -209,7 +225,7 @@
   #dashboard { display: none; }
 
   header.topbar {
-    background: rgba(21, 27, 43, 0.8);
+    background: rgba(255, 255, 255, 0.88);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
@@ -236,7 +252,7 @@
 
   .brand::before {
     content: '🔒';
-    background: rgba(245, 158, 11, 0.1);
+    background: var(--accent-soft);
     padding: 6px;
     border-radius: var(--radius-sm);
     font-size: 14px;
@@ -258,9 +274,9 @@
     font-weight: 600;
     padding: 4px 10px;
     border-radius: 20px;
-    background: var(--surface-raised);
-    border: 1px solid var(--border);
-    color: var(--accent-amber);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    color: var(--accent);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
@@ -279,10 +295,10 @@
 
   nav.tabs {
     display: flex;
-    gap: 8px;
-    padding: 24px 32px 0 32px;
+    gap: 4px;
+    padding: 0 32px;
     border-bottom: 1px solid var(--border);
-    background: var(--bg);
+    background: var(--surface);
     overflow-x: auto;
     position: sticky;
     top: 64px;
@@ -294,11 +310,13 @@
   .tab {
     background: transparent;
     color: var(--text-muted);
-    padding: 12px 18px;
+    padding: 14px 16px;
     font-size: 14px;
     font-weight: 500;
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-    border: 1px solid transparent;
+    border-radius: 0;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
     position: relative;
     transition: var(--transition);
   }
@@ -306,21 +324,9 @@
   .tab:hover { color: var(--text); }
 
   .tab.active {
-    color: var(--text);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-bottom-color: var(--surface);
-    margin-bottom: -1px;
+    color: var(--accent);
+    border-bottom-color: var(--accent);
     font-weight: 600;
-  }
-
-  .tab.active::before {
-    content: '';
-    position: absolute;
-    top: -1px; left: -1px; right: -1px;
-    height: 3px;
-    background: var(--accent-amber);
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
   }
 
   .tab .badge {
@@ -332,7 +338,7 @@
     border-radius: 20px;
     margin-left: 8px;
     font-family: var(--sans);
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+    box-shadow: none;
   }
 
   main {
@@ -356,7 +362,7 @@
     font-size: 22px;
     font-weight: 700;
     margin: 0;
-    color: #ffffff;
+    color: var(--text);
   }
 
   .view-header .header-actions {
@@ -418,12 +424,13 @@
   }
 
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: rgba(255,255,255,0.015); }
+  tr:hover td { background: rgba(15, 23, 42, 0.025); }
 
   .cred-id {
     font-family: var(--mono);
-    color: var(--accent-amber);
+    color: var(--accent);
     font-size: 13px;
+    white-space: nowrap;
     font-weight: 500;
   }
 
@@ -436,28 +443,29 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     display: inline-block;
+    white-space: nowrap;
   }
 
-  .status-active { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.2); }
-  .status-pending { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.2); }
-  .status-rotated { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.2); }
+  .status-active { background: rgba(5, 150, 105, 0.1); color: var(--accent-green-text); border: 1px solid rgba(5, 150, 105, 0.25); }
+  .status-pending { background: rgba(220, 38, 38, 0.08); color: var(--accent-red-hover); border: 1px solid rgba(220, 38, 38, 0.25); }
+  .status-rotated { background: rgba(217, 119, 6, 0.1); color: var(--accent-amber); border: 1px solid rgba(217, 119, 6, 0.3); }
 
-  .sensitivity-high { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.2); }
-  .sensitivity-medium { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.2); }
-  .sensitivity-low { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.2); }
+  .sensitivity-high { background: rgba(220, 38, 38, 0.08); color: var(--accent-red-hover); border: 1px solid rgba(220, 38, 38, 0.25); }
+  .sensitivity-medium { background: rgba(217, 119, 6, 0.1); color: var(--accent-amber); border: 1px solid rgba(217, 119, 6, 0.3); }
+  .sensitivity-low { background: rgba(5, 150, 105, 0.1); color: var(--accent-green-text); border: 1px solid rgba(5, 150, 105, 0.25); }
 
   /* ============ BUTTONS ============ */
   .btn-sm {
     font-size: 13px;
     padding: 8px 14px;
-    background: var(--surface-raised);
+    background: var(--surface);
     color: var(--text);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-strong);
     margin-right: 4px;
   }
   .btn-sm:hover { 
-    border-color: var(--accent-amber); 
-    background: var(--bg);
+    border-color: var(--accent); 
+    background: var(--accent-soft);
   }
 
   td.actions {
@@ -510,7 +518,7 @@
     border: 1px solid var(--border); 
   }
   .btn-danger:hover { 
-    background: rgba(239, 68, 68, 0.1); 
+    background: rgba(220, 38, 38, 0.1); 
     border-color: var(--accent-red); 
     color: var(--accent-red-hover);
   }
@@ -540,7 +548,7 @@
   .toolbar input, .toolbar select {
     margin-bottom: 0;
     max-width: 300px;
-    background: var(--bg);
+    background: var(--surface);
   }
 
   /* ============ MODALS ============ */
@@ -548,7 +556,7 @@
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(11, 15, 25, 0.85);
+    background: rgba(15, 23, 42, 0.45);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     align-items: center;
@@ -582,7 +590,7 @@
     margin: 0 0 24px 0;
     font-size: 18px;
     font-weight: 600;
-    color: #fff;
+    color: var(--text);
   }
 
   .modal-actions {
@@ -594,16 +602,15 @@
 
   .reveal-box {
     font-family: var(--mono);
-    background: #000;
-    border: 1px solid var(--accent-amber);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
     padding: 16px;
     border-radius: var(--radius-sm);
     font-size: 15px;
     font-weight: 500;
     word-break: break-all;
     margin-top: 12px;
-    color: var(--accent-amber);
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+    color: var(--text);
     text-align: center;
     letter-spacing: 1px;
   }
@@ -639,8 +646,8 @@
     top: 76px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--surface-raised);
-    border: 1px solid var(--accent-amber);
+    background: #fffbeb;
+    border: 1px solid rgba(217, 119, 6, 0.4);
     color: var(--accent-amber);
     padding: 8px 18px;
     border-radius: 20px;
@@ -656,7 +663,7 @@
     position: fixed;
     bottom: 32px;
     right: 32px;
-    background: var(--surface-raised);
+    background: var(--surface);
     border: 1px solid var(--border);
     border-left: 4px solid var(--accent-green);
     padding: 16px 20px;
@@ -694,9 +701,9 @@
   }
 
   .tile:hover {
-    transform: translateY(-4px);
+    transform: translateY(-2px);
     box-shadow: var(--shadow-md);
-    border-color: var(--text-muted);
+    border-color: var(--border-strong);
   }
 
   .tile-header {
@@ -709,7 +716,7 @@
   .tile-title {
     font-weight: 700;
     font-size: 18px;
-    color: #fff;
+    color: var(--text);
   }
 
   .pulse-dot {
@@ -722,26 +729,26 @@
 
   .pulse-green {
     background: var(--accent-green);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.6);
     animation: pulseGreen 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
   }
 
   .pulse-red {
     background: var(--accent-red);
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6);
     animation: pulseRed 1.5s infinite cubic-bezier(0.4, 0, 0.6, 1);
   }
 
   @keyframes pulseGreen {
-    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
-    70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.5); }
+    70% { box-shadow: 0 0 0 10px rgba(5, 150, 105, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
   }
 
   @keyframes pulseRed {
-    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-    70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+    70% { box-shadow: 0 0 0 12px rgba(220, 38, 38, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
   }
 
   .tile-stat-row {
@@ -773,8 +780,8 @@
   }
 
   .tile.attention {
-    border-color: rgba(239, 68, 68, 0.4);
-    background: linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, var(--surface) 100%);
+    border-color: rgba(220, 38, 38, 0.4);
+    background: linear-gradient(180deg, rgba(220, 38, 38, 0.05) 0%, var(--surface) 100%);
   }
 
   .tile.attention:hover {
@@ -784,7 +791,7 @@
   .tile-employee-name {
     font-weight: 600;
     font-size: 16px;
-    color: #fff;
+    color: var(--text);
     margin-bottom: 4px;
   }
 
@@ -1022,7 +1029,7 @@
       <option value="High">High</option>
     </select>
     <label for="newCredRemarks">Additional remarks</label>
-    <textarea id="newCredRemarks" placeholder="e.g. Used for monthly GST filing, recovery phone: 98XXXXXX" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:20px;resize:vertical;min-height:80px;transition:var(--transition);box-shadow:inset 0 1px 2px rgba(0,0,0,0.1)"></textarea>
+    <textarea id="newCredRemarks" placeholder="e.g. Used for monthly GST filing, recovery phone: 98XXXXXX" style="width:100%;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:12px 14px;color:var(--text);font-size:14px;font-family:var(--sans);margin-bottom:20px;resize:vertical;min-height:80px;transition:var(--transition);box-shadow:0 1px 2px rgba(15, 23, 42, 0.04)"></textarea>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('newCredModal')">Cancel</button>
       <button class="btn-primary" style="width:auto" id="confirmNewCredBtn">Create</button>
@@ -2196,7 +2203,7 @@
               <span class="pulse-dot ${isSecure ? 'pulse-green' : 'pulse-red'}"></span>
             </div>
             <div class="tile-stat-row"><span>Total credentials</span><strong>${bu.total}</strong></div>
-            <div class="tile-stat-row"><span>Secure</span><strong style="color:var(--accent-green)">${bu.secure}</strong></div>
+            <div class="tile-stat-row"><span>Secure</span><strong style="color:var(--accent-green-text)">${bu.secure}</strong></div>
             <div class="tile-stat-row"><span>Needs attention</span><strong style="color:var(--accent-red)">${bu.insecure}</strong></div>
             <div class="tile-type-breakdown">${typeRows}</div>
           </div>
